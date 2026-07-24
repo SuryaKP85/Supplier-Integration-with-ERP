@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surya ERP — Supplier Integration & Shortage Fulfillment Showcase</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-800 antialiased h-screen flex flex-col overflow-hidden">
+
+  <!-- TOP INTERVIEW SHOWCASE & PRESENTATION CONTROL BAR -->
+  <header class="bg-slate-950 text-white px-4 py-2 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 flex-shrink-0 z-30 shadow-md">
+    <div class="flex items-center gap-3">
+      <div class="bg-indigo-600 text-white font-black text-xs px-2 py-1 rounded tracking-widest uppercase">
+        SHOWCASE DEMO
+      </div>
+      <div>
+        <h1 class="text-xs font-bold text-slate-100 flex items-center gap-2">
+          Surya ERP <span class="text-slate-400 font-normal">| Supplier Integration & Shortage Fulfillment</span>
+        </h1>
+        <p class="text-[10px] text-slate-400">Interactive portfolio & interview walkthrough module</p>
+      </div>
+    </div>
+
+    <!-- QUICK SCENARIO JUMP BUTTONS FOR INTERVIEWS -->
+    <div class="flex items-center gap-1.5 flex-wrap">
+      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1 hidden lg:inline">Walkthrough Jumps:</span>
+      <button onclick="switchView('sales-order')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] font-semibold border border-slate-700 transition flex items-center gap-1">
+        <i data-lucide="shopping-cart" class="w-3 h-3 text-indigo-400"></i> [1] Sales Order Shortage
+      </button>
+      <button onclick="openSupplierLookup()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] font-semibold border border-slate-700 transition flex items-center gap-1">
+        <i data-lucide="link-2" class="w-3 h-3 text-emerald-400"></i> [2] Supplier Inventory Lookup
+      </button>
+      <button onclick="switchView('new-connection'); setWizardStep(1);" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] font-semibold border border-slate-700 transition flex items-center gap-1">
+        <i data-lucide="plug" class="w-3 h-3 text-amber-400"></i> [3] Onboarding Wizard
+      </button>
+      <button onclick="switchView('new-connection'); setWizardStep(3);" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] font-semibold border border-slate-700 transition flex items-center gap-1">
+        <i data-lucide="cpu" class="w-3 h-3 text-purple-400"></i> [4] Field Vector Mapping
+      </button>
+      <button onclick="switchView('catalog')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] font-semibold border border-slate-700 transition flex items-center gap-1">
+        <i data-lucide="package" class="w-3 h-3 text-cyan-400"></i> [5] Unified Catalog
+      </button>
+      <button onclick="toggleInterviewModal()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-bold transition flex items-center gap-1 shadow-sm ml-2">
+        <i data-lucide="help-circle" class="w-3.5 h-3.5"></i> PM & Architecture Talking Points
+      </button>
+    </div>
+  </header>
+
+  <!-- APP CONTAINER -->
+  <div class="flex-1 flex bg-slate-50 overflow-hidden relative">
+
+    <!-- SIDEBAR -->
+    <aside class="w-56 bg-slate-900 text-slate-300 flex flex-col justify-between p-3 border-r border-slate-800 flex-shrink-0 select-none">
+      <div class="space-y-4">
+        <!-- BRANDING -->
+        <div class="flex items-center gap-2.5 px-2 py-1">
+          <div class="h-7 w-7 bg-indigo-600 rounded flex items-center justify-center font-black text-white text-xs tracking-wider">
+            S
+          </div>
+          <div>
+            <div class="font-bold text-slate-100 text-xs tracking-tight uppercase">Surya ERP</div>
+            <div class="text-[9px] text-slate-400 font-mono">CORE v4.8.2</div>
+          </div>
+        </div>
+
+        <!-- NAV SECTION 1: SALES & OPERATIONS -->
+        <div class="space-y-1">
+          <div class="px-2 text-[9px] font-bold text-slate-500 tracking-wider uppercase">Sales &amp; Inventory</div>
+          <button id="nav-sales-order" onclick="switchView('sales-order')" class="w-full text-left px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-2 bg-indigo-600 text-white">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+            <span>Sales Order SO-88214</span>
+          </button>
+          <button id="nav-catalog" onclick="switchView('catalog')" class="w-full text-left px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition">
+            <i data-lucide="package" class="w-3.5 h-3.5"></i>
+            <span>Integrated Catalog</span>
+          </button>
+        </div>
+
+        <!-- NAV SECTION 2: SUPPLIER INTEGRATIONS -->
+        <div class="space-y-1">
+          <div class="px-2 text-[9px] font-bold text-slate-500 tracking-wider uppercase">Supplier Chain APIs</div>
+          <button id="nav-suppliers" onclick="switchView('suppliers')" class="w-full text-left px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition">
+            <i data-lucide="network" class="w-3.5 h-3.5"></i>
+            <span>Connected Suppliers</span>
+          </button>
+          <button id="nav-new-connection" onclick="switchView('new-connection')" class="w-full text-left px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition">
+            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+            <span>Connect New API</span>
+          </button>
+          <button id="nav-orders" onclick="switchView('orders')" class="w-full text-left px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition">
+            <i data-lucide="truck" class="w-3.5 h-3.5"></i>
+            <span>Procurement POs</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SYSTEM STATUS FOOTER -->
+      <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-[10px] space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400 font-medium">Gateway Health:</span>
+          <span class="inline-flex items-center gap-1 text-emerald-400 font-bold">
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Active
+          </span>
+        </div>
+        <div class="text-slate-500 text-[9px]">Sysco, US Foods, PFG Synced</div>
+      </div>
+    </aside>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main class="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-hidden">
+      
+      <!-- TOP BREADCRUMB BAR -->
+      <div class="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-600 flex-shrink-0">
+        <div class="flex items-center gap-1.5 text-slate-500">
+          <span>Surya ERP</span>
+          <i data-lucide="chevron-right" class="w-3 h-3 text-slate-400"></i>
+          <span id="breadcrumb-current" class="text-slate-900 font-bold">Sales Orders</span>
+          <i data-lucide="chevron-right" class="w-3 h-3 text-slate-400"></i>
+          <span id="breadcrumb-sub" class="text-slate-600">SO-88214</span>
+        </div>
+        <div class="text-[11px] text-slate-400 font-mono">
+          Session User: Procurement Lead (Admin)
+        </div>
+      </div>
+
+      <!-- VIEW 1: SALES ORDER (SO-88214) -->
+      <div id="view-sales-order" class="flex-1 overflow-y-auto p-5 max-w-5xl mx-auto w-full custom-scrollbar">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h1 class="text-lg font-bold text-slate-950 uppercase tracking-tight">Sales Order — SO-88214</h1>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Customer: <span class="font-semibold text-slate-700">Whole Foods Market — Store #212</span>
+            </p>
+          </div>
+          <div class="text-right flex flex-col items-end">
+            <span class="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold border border-slate-200">
+              Draft / Live System
+            </span>
+            <div class="text-[10px] text-slate-400 mt-0.5">Jul 23, 2026</div>
+          </div>
+        </div>
+
+        <!-- INTERACTIVE GUIDE BANNER -->
+        <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-indigo-950 mb-4 flex items-start gap-2.5 leading-relaxed shadow-sm">
+          <i data-lucide="file-search" class="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5"></i>
+          <div>
+            <span class="font-bold">Interactive Showcase Action:</span> Line item <span class="font-mono font-bold text-slate-900">ITM-8829</span> currently reports <span class="font-bold text-rose-700 bg-rose-50 px-1 py-0.5 rounded border border-rose-100">Insufficient Stock</span>. Click <span class="font-bold text-indigo-700 underline cursor-pointer" onclick="openSupplierLookup()">"Check Supplier Integration"</span> to query live connected suppliers and fulfill the shortage dynamically.
+          </div>
+        </div>
+
+        <!-- LINE ITEMS TABLE -->
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
+                <th class="py-2.5 px-4">Item ID</th>
+                <th class="py-2.5 px-4">Description</th>
+                <th class="py-2.5 px-4">Qty Ordered</th>
+                <th class="py-2.5 px-4">Available Qty</th>
+                <th class="py-2.5 px-4">Unit Price</th>
+                <th class="py-2.5 px-4">Line Status</th>
+                <th class="py-2.5 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+              <tr>
+                <td class="py-2.5 px-4 font-mono font-bold text-slate-900">ITM-1024</td>
+                <td class="py-2.5 px-4 text-slate-900 font-semibold">Organic Hass Avocados (Case of 24)</td>
+                <td class="py-2.5 px-4 font-bold text-slate-800">50</td>
+                <td class="py-2.5 px-4 text-emerald-700 font-bold">120</td>
+                <td class="py-2.5 px-4">$32.50</td>
+                <td class="py-2.5 px-4">
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                    In Stock
+                  </span>
+                </td>
+                <td class="py-2.5 px-4 text-right">
+                  <button disabled class="text-[10px] font-bold text-slate-300 cursor-not-allowed">Standard</button>
+                </td>
+              </tr>
+              <tr id="fries-row" class="bg-rose-50/30 transition-colors">
+                <td class="py-2.5 px-4 font-mono font-bold text-slate-900">ITM-8829</td>
+                <td class="py-2.5 px-4 text-slate-900 font-bold">Frozen Potato Fries (2.5kg bag)</td>
+                <td class="py-2.5 px-4 font-bold text-slate-800">100</td>
+                <td class="py-2.5 px-4 text-rose-600 font-bold">12</td>
+                <td class="py-2.5 px-4">$14.20</td>
+                <td class="py-2.5 px-4" id="fries-status-cell">
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-700 flex items-center gap-1 w-fit border border-rose-200">
+                    <i data-lucide="alert-triangle" class="w-3 h-3 text-rose-600"></i> Insufficient Stock
+                  </span>
+                </td>
+                <td class="py-2.5 px-4 text-right">
+                  <button onclick="openSupplierLookup()" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold transition flex items-center gap-1 ml-auto shadow-sm">
+                    <i data-lucide="link-2" class="w-3 h-3"></i> Check Supplier
+                  </button>
+                </td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-mono font-bold text-slate-900">ITM-4412</td>
+                <td class="py-2.5 px-4 text-slate-900 font-semibold">Artisanal Cheddar Block 5lb</td>
+                <td class="py-2.5 px-4 font-bold text-slate-800">20</td>
+                <td class="py-2.5 px-4 text-emerald-700 font-bold">45</td>
+                <td class="py-2.5 px-4">$28.00</td>
+                <td class="py-2.5 px-4">
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                    In Stock
+                  </span>
+                </td>
+                <td class="py-2.5 px-4 text-right">
+                  <button disabled class="text-[10px] font-bold text-slate-300 cursor-not-allowed">Standard</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- PRODUCT MANAGER INSIGHT BOX -->
+        <div class="bg-white border border-slate-200 rounded-lg p-4 text-xs space-y-1.5">
+          <div class="font-bold text-slate-900 uppercase tracking-wider text-[10px] flex items-center gap-1.5 text-indigo-600">
+            <i data-lucide="lightbulb" class="w-3.5 h-3.5"></i> PM &amp; Operational Rationale
+          </div>
+          <p class="text-slate-600 leading-relaxed">
+            In wholesale distribution, an unfulfilled order line usually leads to customer order cancellations or steep SLA penalties. By surfacing integrated supplier inventory directly within the Sales Order context, buyers resolve shortages in under 30 seconds rather than sending manual emails.
+          </p>
+        </div>
+      </div>
+
+      <!-- VIEW 2: CONNECTED SUPPLIERS -->
+      <div id="view-suppliers" class="hidden flex-1 overflow-y-auto p-5 max-w-5xl mx-auto w-full custom-scrollbar">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h1 class="text-lg font-bold text-slate-950 uppercase tracking-tight">Connected Suppliers</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Configure and manage active inventory and ordering API links</p>
+          </div>
+          <button onclick="switchView('new-connection'); setWizardStep(1);" class="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold shadow-sm transition">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Connection
+          </button>
+        </div>
+
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                <th class="py-2.5 px-4 font-bold">Supplier Name</th>
+                <th class="py-2.5 px-4 font-bold">Health Status</th>
+                <th class="py-2.5 px-4 font-bold">Auth Protocol</th>
+                <th class="py-2.5 px-4 font-bold">Last Synced</th>
+                <th class="py-2.5 px-4 font-bold">Mapped SKUs</th>
+                <th class="py-2.5 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-slate-950">Sysco Foods Direct</td>
+                <td class="py-2.5 px-4">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Active / Healthy
+                  </span>
+                </td>
+                <td class="py-2.5 px-4">API Key (X-API-KEY)</td>
+                <td class="py-2.5 px-4 font-semibold text-slate-500">2 mins ago</td>
+                <td class="py-2.5 px-4 font-bold text-slate-800">14,200</td>
+                <td class="py-2.5 px-4 text-right space-x-2">
+                  <button onclick="alert('Testing connection to Sysco Foods... Status: 200 OK (310ms response)')" class="text-indigo-600 hover:underline text-[10px] font-bold">Test Link</button>
+                  <button onclick="switchView('new-connection'); setWizardStep(3);" class="text-indigo-600 hover:underline text-[10px] font-bold">Edit Map</button>
+                </td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-slate-950">US Foods Logistics</td>
+                <td class="py-2.5 px-4">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                    <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span> Auth Error (401)
+                  </span>
+                </td>
+                <td class="py-2.5 px-4">OAuth 2.0</td>
+                <td class="py-2.5 px-4 font-semibold text-slate-500">1 hour ago</td>
+                <td class="py-2.5 px-4 font-bold text-slate-800">8,950</td>
+                <td class="py-2.5 px-4 text-right space-x-2">
+                  <button onclick="alert('Testing US Foods... Error 401: Token expired.')" class="text-rose-600 hover:underline text-[10px] font-bold">Fix Auth</button>
+                  <button onclick="switchView('new-connection'); setWizardStep(3);" class="text-indigo-600 hover:underline text-[10px] font-bold">Edit Map</button>
+                </td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-slate-950">Performance Food Group (PFG)</td>
+                <td class="py-2.5 px-4">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Active / Healthy
+                  </span>
+                </td>
+                <td class="py-2.5 px-4">Basic Auth</td>
+                <td class="py-2.5 px-4 font-semibold text-slate-500">15 mins ago</td>
+                <td class="py-2.5 px-4 font-bold text-slate-800">5,120</td>
+                <td class="py-2.5 px-4 text-right space-x-2">
+                  <button onclick="alert('Testing PFG Link... Status 200 OK')" class="text-indigo-600 hover:underline text-[10px] font-bold">Test Link</button>
+                  <button onclick="switchView('new-connection'); setWizardStep(3);" class="text-indigo-600 hover:underline text-[10px] font-bold">Edit Map</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW 3: ONBOARDING WIZARD -->
+      <div id="view-new-connection" class="hidden flex-1 overflow-y-auto p-5 max-w-4xl mx-auto w-full custom-scrollbar">
+        <h1 class="text-lg font-bold text-slate-950 uppercase tracking-tight mb-1">Supplier Integration Onboarding</h1>
+        <p class="text-xs text-slate-500 mb-5">Link new supply chains into Surya ERP master system</p>
+
+        <!-- WIZARD STEPPER HEADER -->
+        <div class="flex items-center justify-between max-w-lg mx-auto mb-6 bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm select-none">
+          <div onclick="setWizardStep(1)" class="cursor-pointer flex flex-col items-center gap-1">
+            <div id="step-num-1" class="flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold bg-indigo-600 text-white">1</div>
+            <span id="step-label-1" class="text-[9px] font-bold tracking-tight uppercase text-indigo-600">Credentials</span>
+          </div>
+          <div class="flex-1 h-0.5 bg-slate-200 mx-3"></div>
+
+          <div onclick="setWizardStep(2)" class="cursor-pointer flex flex-col items-center gap-1">
+            <div id="step-num-2" class="flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400">2</div>
+            <span id="step-label-2" class="text-[9px] font-bold tracking-tight uppercase text-slate-400">Discovery</span>
+          </div>
+          <div class="flex-1 h-0.5 bg-slate-200 mx-3"></div>
+
+          <div onclick="setWizardStep(3)" class="cursor-pointer flex flex-col items-center gap-1">
+            <div id="step-num-3" class="flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400">3</div>
+            <span id="step-label-3" class="text-[9px] font-bold tracking-tight uppercase text-slate-400">Field Mapping</span>
+          </div>
+          <div class="flex-1 h-0.5 bg-slate-200 mx-3"></div>
+
+          <div onclick="setWizardStep(4)" class="cursor-pointer flex flex-col items-center gap-1">
+            <div id="step-num-4" class="flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400">4</div>
+            <span id="step-label-4" class="text-[9px] font-bold tracking-tight uppercase text-slate-400">Verification</span>
+          </div>
+        </div>
+
+        <!-- WIZARD STEP 1 CONTENT -->
+        <div id="wizard-step-1-content" class="max-w-xl mx-auto w-full">
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5 space-y-4">
+            <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">Supplier API Endpoint Settings</h3>
+            <div class="grid grid-cols-2 gap-3.5">
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 block mb-1">SUPPLIER LEGAL NAME</label>
+                <input class="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-medium focus:ring-1 focus:ring-indigo-500" value="Pacific Seafood Direct">
+              </div>
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 block mb-1">API BASE ENDPOINT URL</label>
+                <input class="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-mono focus:ring-1 focus:ring-indigo-500" value="https://api.pacificseafood.com/v2">
+              </div>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-bold text-slate-500 block mb-1">AUTH PROTOCOL METHOD</label>
+              <select class="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-bold">
+                <option>API Key</option>
+                <option>OAuth 2.0</option>
+                <option>Basic Auth</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-bold text-slate-500 block mb-1">API KEY (X-API-KEY HEADER VALUE)</label>
+              <input type="password" class="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-mono" value="ps_live_89432890423890432">
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
+              <label class="flex items-center gap-1.5 text-[10px] text-rose-700 font-bold cursor-pointer select-none">
+                <input id="sim-fail-check" type="checkbox" class="rounded border-slate-300 text-rose-600 focus:ring-rose-500 h-3.5 w-3.5">
+                <span>Simulate handshake failure</span>
+              </label>
+
+              <button onclick="testWizardEndpoint()" class="flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded text-[10px] font-bold transition shadow-sm">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i> Test Endpoint
+              </button>
+            </div>
+
+            <!-- RESULT BANNER -->
+            <div id="endpoint-test-result" class="hidden"></div>
+          </div>
+
+          <div class="flex justify-end mt-4">
+            <button onclick="setWizardStep(2)" class="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow transition">
+              Next: Schema Discovery <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- WIZARD STEP 2 CONTENT -->
+        <div id="wizard-step-2-content" class="hidden max-w-xl mx-auto w-full">
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h3 class="text-xs font-bold text-slate-900 border-b border-slate-100 pb-2 mb-3.5 uppercase tracking-wider">API Mapping Scanner</h3>
+            <div class="text-xs font-semibold text-slate-700 mb-2">Analyzing endpoint JSON properties...</div>
+            <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
+              <div id="scanner-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all duration-300" style="width: 100%;"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+              <span>Progress: 100%</span>
+              <span class="text-emerald-600 font-bold">Analysis Complete</span>
+            </div>
+
+            <div class="mt-4 border-t border-slate-100 pt-4 space-y-3.5">
+              <div class="bg-indigo-50 border border-indigo-100 text-indigo-950 p-3 rounded text-xs leading-relaxed">
+                Our AI-assisted mapping analyzer scanned the supplier JSON response payload and resolved matching properties based on vocabulary vectors. We found matches with high confidence.
+              </div>
+              <div class="grid grid-cols-3 gap-3 text-center">
+                <div class="bg-emerald-50 border border-emerald-100 rounded p-2">
+                  <div class="text-xl font-bold text-emerald-700">9</div>
+                  <div class="text-[9px] font-bold text-emerald-700 mt-0.5 uppercase tracking-wide">High Conf</div>
+                </div>
+                <div class="bg-amber-50 border border-amber-100 rounded p-2">
+                  <div class="text-xl font-bold text-amber-700">1</div>
+                  <div class="text-[9px] font-bold text-amber-700 mt-0.5 uppercase tracking-wide">Pending</div>
+                </div>
+                <div class="bg-rose-50 border border-rose-100 rounded p-2">
+                  <div class="text-xl font-bold text-rose-600">0</div>
+                  <div class="text-[9px] font-bold text-rose-600 mt-0.5 uppercase tracking-wide">Conflict</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-between mt-4">
+            <button onclick="setWizardStep(1)" class="flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-800">
+              <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Back
+            </button>
+            <button onclick="setWizardStep(3)" class="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow">
+              Next: Field Mapping <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- WIZARD STEP 3 CONTENT -->
+        <div id="wizard-step-3-content" class="hidden max-w-4xl mx-auto w-full">
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
+            <div class="p-4 border-b border-slate-150">
+              <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Configure Supplier Key Value Bindings</h3>
+              <p class="text-[10px] text-slate-500 mt-0.5">Confirm or alter how incoming JSON attributes map to Surya ERP's master entity variables</p>
+            </div>
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th class="py-2 px-4 font-bold">Supplier Field Name</th>
+                  <th class="py-2 px-4 font-bold">JSON Value Sample</th>
+                  <th class="py-2 px-4 font-bold">ERP Target Attribute</th>
+                  <th class="py-2 px-4 font-bold">Confidence Score</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 text-slate-700">
+                <tr>
+                  <td class="py-2 px-4 font-mono text-[11px] font-bold text-slate-800">item_sku_id</td>
+                  <td class="py-2 px-4 font-mono text-[10px] text-slate-500">"SYS-88129"</td>
+                  <td class="py-1 px-4">
+                    <select class="border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold bg-white">
+                      <option selected>Supplier Item SKU</option>
+                      <option>Item Code</option>
+                    </select>
+                  </td>
+                  <td class="py-1 px-4">
+                    <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">98%</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-4 font-mono text-[11px] font-bold text-slate-800">product_title_desc</td>
+                  <td class="py-2 px-4 font-mono text-[10px] text-slate-500">"Frozen Potato Fries 2.5kg"</td>
+                  <td class="py-1 px-4">
+                    <select class="border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold bg-white">
+                      <option selected>Item Description</option>
+                    </select>
+                  </td>
+                  <td class="py-1 px-4">
+                    <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">95%</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-4 font-mono text-[11px] font-bold text-slate-800">wholesale_cost_usd</td>
+                  <td class="py-2 px-4 font-mono text-[10px] text-slate-500">14.20</td>
+                  <td class="py-1 px-4">
+                    <select class="border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold bg-white">
+                      <option selected>Unit Cost (USD)</option>
+                    </select>
+                  </td>
+                  <td class="py-1 px-4">
+                    <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">99%</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-4 font-mono text-[11px] font-bold text-slate-800">available_stock_cnt</td>
+                  <td class="py-2 px-4 font-mono text-[10px] text-slate-500">450</td>
+                  <td class="py-1 px-4">
+                    <select class="border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold bg-white">
+                      <option selected>Available Quantity</option>
+                    </select>
+                  </td>
+                  <td class="py-1 px-4">
+                    <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">92%</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-4 font-mono text-[11px] font-bold text-slate-800">pack_size_uom</td>
+                  <td class="py-2 px-4 font-mono text-[10px] text-slate-500">"CS/12"</td>
+                  <td class="py-1 px-4">
+                    <select class="border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold bg-white">
+                      <option selected>Unit of Measure (CS)</option>
+                    </select>
+                  </td>
+                  <td class="py-1 px-4">
+                    <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">72%</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex justify-between mt-4">
+            <button onclick="setWizardStep(2)" class="flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-800">
+              <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Back
+            </button>
+            <button onclick="setWizardStep(4)" class="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow">
+              Save Mapping &amp; Verify <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- WIZARD STEP 4 CONTENT -->
+        <div id="wizard-step-4-content" class="hidden max-w-xl mx-auto w-full">
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5 space-y-4">
+            <h3 class="text-xs font-bold text-slate-900 border-b border-slate-100 pb-2 uppercase tracking-wider">Compliance &amp; Synchronization</h3>
+            <div>
+              <div class="text-xs font-bold text-slate-900 mb-1">Mapping Integrity Completed</div>
+              <p class="text-[11px] text-slate-500 leading-relaxed">
+                9 automatic field bindings confirmed. 1 field manually overridden (UOM conversion multiplier set to 12 each).
+              </p>
+            </div>
+
+            <div class="border-t border-slate-100 pt-3 space-y-2">
+              <label class="flex items-center justify-between cursor-pointer select-none">
+                <span class="text-xs font-semibold text-slate-700">Scheduled sync frequency</span>
+                <input type="checkbox" checked class="rounded border-slate-300 text-indigo-600 h-3.5 w-3.5">
+              </label>
+              <select class="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-bold bg-white">
+                <option>Real-time (Webhook Triggered)</option>
+                <option>Every 15 minutes</option>
+                <option>Hourly Recurrence</option>
+              </select>
+            </div>
+
+            <div class="border-t border-slate-100 pt-3 space-y-2">
+              <label class="flex items-center justify-between cursor-pointer select-none">
+                <span class="text-xs font-semibold text-slate-700">Require supervisor approval threshold</span>
+                <input type="checkbox" checked class="rounded border-slate-300 text-indigo-600 h-3.5 w-3.5">
+              </label>
+              <div class="flex items-center gap-1.5">
+                <span class="text-slate-400 text-xs font-bold">$</span>
+                <input value="5000" class="border border-slate-300 rounded px-2 py-0.5 text-xs font-bold w-24">
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-between mt-4">
+            <button onclick="setWizardStep(3)" class="flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-800">
+              <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Back
+            </button>
+            <button onclick="activateSupplierConnection()" class="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Activate Connection
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 4: CATALOG -->
+      <div id="view-catalog" class="hidden flex-1 overflow-y-auto p-5 max-w-5xl mx-auto w-full custom-scrollbar">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h1 class="text-lg font-bold text-slate-950 uppercase tracking-tight">Supplier Catalog Lookup</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Unified live view of all products exposed by active supplier integrations</p>
+          </div>
+          <button onclick="switchView('orders')" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold shadow-sm">
+            <i data-lucide="shopping-cart" class="w-3.5 h-3.5"></i> Create Procurement Order
+          </button>
+        </div>
+
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                <th class="py-2 px-3">Product Identity</th>
+                <th class="py-2 px-3">Universal UPC</th>
+                <th class="py-2 px-3">Unit Cost</th>
+                <th class="py-2 px-3">Stock Available</th>
+                <th class="py-2 px-3">Warehouse</th>
+                <th class="py-2 px-3">Lead Days</th>
+                <th class="py-2 px-3">Surya ERP Binding</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700">
+              <tr>
+                <td class="py-2.5 px-3 font-bold text-slate-950">Frozen Potato Fries 2.5kg</td>
+                <td class="py-2.5 px-3 font-mono text-slate-500">041196010221</td>
+                <td class="py-2.5 px-3 font-bold text-slate-900">$14.20</td>
+                <td class="py-2.5 px-3 font-bold text-emerald-700">450 cases</td>
+                <td class="py-2.5 px-3">WH-EAST-01</td>
+                <td class="py-2.5 px-3 font-bold">1 Day</td>
+                <td class="py-2.5 px-3">
+                  <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Mapped to ITM-8829</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-3 font-bold text-slate-950">Grade A Whole Frozen Turkeys</td>
+                <td class="py-2.5 px-3 font-mono text-slate-500">078239019231</td>
+                <td class="py-2.5 px-3 font-bold text-slate-900">$38.50</td>
+                <td class="py-2.5 px-3 font-bold text-emerald-700">120 units</td>
+                <td class="py-2.5 px-3">WH-NORTH-04</td>
+                <td class="py-2.5 px-3 font-bold">2 Days</td>
+                <td class="py-2.5 px-3">
+                  <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Mapped to ITM-1102</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW 5: PROCUREMENT PO DISPATCHES -->
+      <div id="view-orders" class="hidden flex-1 overflow-y-auto p-5 max-w-4xl mx-auto w-full custom-scrollbar">
+        <h1 class="text-lg font-bold text-slate-950 uppercase tracking-tight mb-1">New Procurement PO — Sysco Foods</h1>
+        <p class="text-xs text-slate-500 mb-4">Draft purchase order dispatched directly to connected supplier API</p>
+
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                <th class="py-2 px-3 font-bold">Procured Product</th>
+                <th class="py-2 px-3 font-bold">Target Warehouse</th>
+                <th class="py-2 px-3 font-bold w-16">Quantity</th>
+                <th class="py-2 px-3 font-bold">Unit Price</th>
+                <th class="py-2 px-3 text-right font-bold">Line Total</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr>
+                <td class="py-2.5 px-3 font-bold text-slate-950">Frozen Potato Fries (2.5kg bag)</td>
+                <td class="py-2.5 px-3">WH-EAST-01</td>
+                <td class="py-2.5 px-3 font-bold">88 cases</td>
+                <td class="py-2.5 px-3">$14.20</td>
+                <td class="py-2.5 px-3 text-right font-bold text-slate-900">$1,249.60</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <button onclick="alert('Procurement Order PO-SYS-2026-089 sent to Sysco Foods API!')" class="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition shadow-sm mb-6">
+          <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Submit Order to Supplier Gateway
+        </button>
+
+        <div class="border-t border-slate-200 pt-5">
+          <h2 class="font-bold text-slate-950 uppercase tracking-wider text-xs mb-3">Historical Procurement Dispatches</h2>
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th class="py-2.5 px-4 font-bold">PO Code</th>
+                  <th class="py-2.5 px-4 font-bold">Target Supplier</th>
+                  <th class="py-2.5 px-4 font-bold">Dispatch Date</th>
+                  <th class="py-2.5 px-4 font-bold">Gross Total</th>
+                  <th class="py-2.5 px-4 font-bold">Compliance Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                <tr>
+                  <td class="py-2.5 px-4 font-mono text-slate-800 font-bold">PO-SYS-2026-089</td>
+                  <td class="py-2.5 px-4 font-bold text-slate-950">Sysco Foods</td>
+                  <td class="py-2.5 px-4 text-slate-500 font-semibold">Jul 23, 2026</td>
+                  <td class="py-2.5 px-4 text-indigo-600 font-bold">$1,249.60</td>
+                  <td class="py-2.5 px-4">
+                    <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Acknowledged</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-4 font-mono text-slate-800 font-bold">PO-USF-2026-042</td>
+                  <td class="py-2.5 px-4 font-bold text-slate-950">US Foods</td>
+                  <td class="py-2.5 px-4 text-slate-500 font-semibold">Jul 21, 2026</td>
+                  <td class="py-2.5 px-4 text-indigo-600 font-bold">$6,480.00</td>
+                  <td class="py-2.5 px-4">
+                    <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Pending Approval</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- SUPPLIER LOOKUP MODAL -->
+  <div id="supplier-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-xl overflow-hidden border border-slate-200">
+      <div class="p-4 border-b border-slate-150 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900">Supplier Availability Lookup</h2>
+          <p class="text-[10px] text-slate-500 mt-0.5">
+            Querying live integrated suppliers for <span class="font-mono font-bold bg-slate-100 px-1 py-0.5 rounded text-slate-800">ITM-8829</span>
+          </p>
+        </div>
+        <button onclick="closeSupplierModal()" class="text-slate-400 hover:text-slate-600 bg-slate-50 p-1 rounded-full">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-4 space-y-3">
+        <div class="bg-slate-50 border border-slate-200 rounded-md p-2.5 flex items-center justify-between text-xs font-medium text-slate-600">
+          <div>Required Qty: <span class="font-bold text-slate-900">88 cases</span></div>
+          <div>Item: <span class="font-bold text-slate-800">Frozen Potato Fries (2.5kg bag)</span></div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                <th class="py-2 px-3 font-bold">Supplier</th>
+                <th class="py-2 px-3 font-bold">Price</th>
+                <th class="py-2 px-3 font-bold">Stock</th>
+                <th class="py-2 px-3 font-bold">Lead Time</th>
+                <th class="py-2 px-3 font-bold w-16">Qty</th>
+                <th class="py-2 px-3"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700">
+              <tr class="hover:bg-slate-50">
+                <td class="py-2 px-3 font-bold text-slate-900">Sysco Foods</td>
+                <td class="py-2 px-3 font-medium text-slate-800">$14.20</td>
+                <td class="py-2 px-3 font-bold text-emerald-700">450 available</td>
+                <td class="py-2 px-3 text-slate-500">Same Day</td>
+                <td class="py-2 px-3">
+                  <input id="sysco-fulfill-qty" value="88" class="w-14 border border-slate-300 rounded px-1.5 py-0.5 text-xs text-center font-bold">
+                </td>
+                <td class="py-2 px-3 text-right">
+                  <button onclick="fulfillShortageAction('Sysco Foods', 14.20, 'PO-SYS-2026-089')" class="text-[10px] font-bold px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition shadow-sm">
+                    Fulfill Shortage
+                  </button>
+                </td>
+              </tr>
+              <tr class="hover:bg-slate-50">
+                <td class="py-2 px-3 font-bold text-slate-900">US Foods Direct</td>
+                <td class="py-2 px-3 font-medium text-slate-800">$14.80</td>
+                <td class="py-2 px-3 font-bold text-emerald-700">200 available</td>
+                <td class="py-2 px-3 text-slate-500">2 Days</td>
+                <td class="py-2 px-3">
+                  <input value="88" class="w-14 border border-slate-300 rounded px-1.5 py-0.5 text-xs text-center font-bold">
+                </td>
+                <td class="py-2 px-3 text-right">
+                  <button onclick="fulfillShortageAction('US Foods Direct', 14.80, 'PO-USF-2026-092')" class="text-[10px] font-bold px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition">
+                    Fulfill Shortage
+                  </button>
+                </td>
+              </tr>
+              <tr class="hover:bg-slate-50">
+                <td class="py-2 px-3 font-bold text-slate-900">PFG Logistics</td>
+                <td class="py-2 px-3 font-medium text-slate-800">$13.90</td>
+                <td class="py-2 px-3 font-bold text-rose-600">Out of Stock</td>
+                <td class="py-2 px-3 text-slate-500">5 Days</td>
+                <td class="py-2 px-3">
+                  <input value="0" disabled class="w-14 border border-slate-300 rounded px-1.5 py-0.5 text-xs text-center font-bold bg-slate-100">
+                </td>
+                <td class="py-2 px-3 text-right">
+                  <button disabled class="text-[10px] font-bold px-2 py-1 bg-slate-100 text-slate-400 rounded cursor-not-allowed">
+                    Fulfill Shortage
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTERVIEW PRESENTATION & TALKING POINTS DRAWER/MODAL -->
+  <div id="interview-modal" class="hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex justify-end">
+    <div class="bg-white w-full max-w-xl h-full shadow-2xl flex flex-col border-l border-slate-200">
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <i data-lucide="help-circle" class="w-5 h-5 text-indigo-400"></i>
+          <div>
+            <h2 class="text-sm font-bold text-slate-100">PM &amp; Engineering Interview Guide</h2>
+            <p class="text-[10px] text-slate-400">Talking points &amp; technical architectural rationale</p>
+          </div>
+        </div>
+        <button onclick="toggleInterviewModal()" class="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-6 flex-1 overflow-y-auto space-y-6 text-xs text-slate-700 custom-scrollbar">
+        <!-- SECTION 1 -->
+        <div class="space-y-2">
+          <div class="font-bold text-slate-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5 text-indigo-600">
+            <i data-lucide="target" class="w-4 h-4"></i> 1. Problem Statement &amp; Business Context
+          </div>
+          <p class="leading-relaxed bg-slate-50 p-3 rounded border border-slate-200">
+            Wholesale food distributors face high stockout penalties (often 5-15% of order value) when customer sales orders cannot be fulfilled from local warehouse stock. Historically, buyers spend 2-4 hours daily manually calling suppliers or checking separate portals.
+          </p>
+        </div>
+
+        <!-- SECTION 2 -->
+        <div class="space-y-2">
+          <div class="font-bold text-slate-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5 text-indigo-600">
+            <i data-lucide="sparkles" class="w-4 h-4"></i> 2. Core Operational ROI
+          </div>
+          <ul class="list-disc pl-4 space-y-1.5 leading-relaxed bg-slate-50 p-3 rounded border border-slate-200">
+            <li><strong>Automated Real-Time Shortage Resolution:</strong> Shortage detection triggers integrated API queries to active vendors, allowing 30-second PO dispatch directly from the Sales Order screen.</li>
+            <li><strong>AI Vocabulary Vector Field Binding:</strong> Reduces new supplier onboarding time from 3 weeks of manual engineering script writing to 5 minutes of automated schema discovery.</li>
+            <li><strong>Financial Compliance Thresholds:</strong> Enforces supervisor approval rules on dispatches exceeding $5,000 to prevent runaway procurement.</li>
+          </ul>
+        </div>
+
+        <!-- SECTION 3 -->
+        <div class="space-y-2">
+          <div class="font-bold text-slate-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5 text-indigo-600">
+            <i data-lucide="cpu" class="w-4 h-4"></i> 3. Technical Architecture &amp; Reliability
+          </div>
+          <div class="bg-slate-900 text-slate-200 font-mono text-[11px] p-3 rounded space-y-1">
+            <div><span class="text-indigo-400">Architecture:</span> React + TypeScript + Express API Proxy</div>
+            <div><span class="text-indigo-400">Auth Support:</span> OAuth 2.0 (Token Refresh), X-API-KEY, Basic</div>
+            <div><span class="text-indigo-400">Mapping Algorithm:</span> Vector Similarity on JSON payload keys</div>
+            <div><span class="text-indigo-400">Error Fallback:</span> Graceful circuit breaker on API 401/500</div>
+          </div>
+        </div>
+
+        <!-- SECTION 4 -->
+        <div class="space-y-2">
+          <div class="font-bold text-slate-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5 text-indigo-600">
+            <i data-lucide="palette" class="w-4 h-4"></i> 4. UX &amp; Visual Design System
+          </div>
+          <p class="leading-relaxed bg-slate-50 p-3 rounded border border-slate-200">
+            Designed with dense, high-contrast, professional enterprise aesthetics (slate-950 headers, indigo primary accents, emerald/rose status badges). Zero fluff or promotional noise — every pixel is tailored for high-frequency ERP power users.
+          </p>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
+        <span class="text-slate-500 font-semibold">Surya ERP Portfolio Feature</span>
+        <button onclick="toggleInterviewModal()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded font-bold">
+          Close Guide
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT LOGIC -->
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // View Switching
+    function switchView(viewId) {
+      const views = ['sales-order', 'suppliers', 'new-connection', 'catalog', 'orders'];
+      views.forEach(v => {
+        const el = document.getElementById(`view-${v}`);
+        const navEl = document.getElementById(`nav-${v}`);
+        if (el) {
+          if (v === viewId) {
+            el.classList.remove('hidden');
+          } else {
+            el.classList.add('hidden');
+          }
+        }
+        if (navEl) {
+          if (v === viewId) {
+            navEl.className = 'w-full text-left px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-2 bg-indigo-600 text-white';
+          } else {
+            navEl.className = 'w-full text-left px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition';
+          }
+        }
+      });
+
+      // Update Breadcrumbs
+      const currentMap = {
+        'sales-order': 'Sales Orders',
+        'suppliers': 'Connected Suppliers',
+        'new-connection': 'Supplier Integration Onboarding',
+        'catalog': 'Integrated Product Catalog',
+        'orders': 'Procurement Purchase Orders'
+      };
+      const subMap = {
+        'sales-order': 'SO-88214',
+        'suppliers': 'Active API Links',
+        'new-connection': 'Onboarding Wizard',
+        'catalog': 'Unified Catalog Search',
+        'orders': 'Dispatch Logs'
+      };
+      document.getElementById('breadcrumb-current').textContent = currentMap[viewId] || 'Surya ERP';
+      document.getElementById('breadcrumb-sub').textContent = subMap[viewId] || 'Overview';
+    }
+
+    // Modal Controls
+    function openSupplierLookup() {
+      document.getElementById('supplier-modal').classList.remove('hidden');
+    }
+    function closeSupplierModal() {
+      document.getElementById('supplier-modal').classList.add('hidden');
+    }
+
+    function toggleInterviewModal() {
+      const modal = document.getElementById('interview-modal');
+      modal.classList.toggle('hidden');
+    }
+
+    // Fulfill Shortage Action
+    function fulfillShortageAction(supplier, price, poNum) {
+      closeSupplierModal();
+      
+      // Update Shortage Row in Sales Order
+      const statusCell = document.getElementById('fries-status-cell');
+      if (statusCell) {
+        statusCell.innerHTML = `
+          <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 flex items-center gap-1 w-fit border border-emerald-200 shadow-sm">
+            <i data-lucide="truck" class="w-3 h-3 text-emerald-600"></i> PO Created (${poNum})
+          </span>
+        `;
+        lucide.createIcons();
+      }
+
+      alert(`Purchase Order ${poNum} successfully generated and dispatched to ${supplier}! Shortage resolved for Sales Order SO-88214.`);
+    }
+
+    // Wizard Stepper Controls
+    function setWizardStep(stepNum) {
+      [1, 2, 3, 4].forEach(s => {
+        const content = document.getElementById(`wizard-step-${s}-content`);
+        const numEl = document.getElementById(`step-num-${s}`);
+        const labelEl = document.getElementById(`step-label-${s}`);
+
+        if (content) {
+          if (s === stepNum) content.classList.remove('hidden');
+          else content.classList.add('hidden');
+        }
+
+        if (numEl && labelEl) {
+          if (s === stepNum) {
+            numEl.className = 'flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold bg-indigo-600 text-white';
+            labelEl.className = 'text-[9px] font-bold tracking-tight uppercase text-indigo-600';
+          } else if (s < stepNum) {
+            numEl.className = 'flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold bg-emerald-500 text-white';
+            labelEl.className = 'text-[9px] font-bold tracking-tight uppercase text-emerald-600';
+          } else {
+            numEl.className = 'flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400';
+            labelEl.className = 'text-[9px] font-bold tracking-tight uppercase text-slate-400';
+          }
+        }
+      });
+    }
+
+    // Test Wizard Endpoint Button Action
+    function testWizardEndpoint() {
+      const isFail = document.getElementById('sim-fail-check').checked;
+      const resultDiv = document.getElementById('endpoint-test-result');
+      resultDiv.classList.remove('hidden');
+
+      if (isFail) {
+        resultDiv.className = 'bg-rose-50 border border-rose-100 rounded p-3 text-rose-900 text-xs flex items-start gap-2 mt-2';
+        resultDiv.innerHTML = `
+          <i data-lucide="x-circle" class="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5"></i>
+          <div>
+            <div class="font-bold text-rose-950 text-xs">Handshake Failed: 401 Unauthorized</div>
+            <div class="text-[10px] text-rose-700 mt-0.5">The provided API Key or token header was rejected by the supplier gateway.</div>
+          </div>
+        `;
+      } else {
+        resultDiv.className = 'bg-emerald-50 border border-emerald-100 rounded p-3 text-emerald-900 text-xs flex items-start gap-2 mt-2';
+        resultDiv.innerHTML = `
+          <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5"></i>
+          <div>
+            <div class="font-bold text-emerald-950 text-xs">Connection Handshake Succeeded</div>
+            <div class="text-[10px] text-emerald-700 mt-0.5">Discovered endpoints: /v2/products, /v2/inventory, /v2/orders. Response time: 280ms.</div>
+          </div>
+        `;
+      }
+      lucide.createIcons();
+    }
+
+    // Activate Connection Action
+    function activateSupplierConnection() {
+      alert('Pacific Seafood Direct API connection successfully activated and saved to Surya ERP master system!');
+      switchView('suppliers');
+    }
+  </script>
+</body>
+</html>
