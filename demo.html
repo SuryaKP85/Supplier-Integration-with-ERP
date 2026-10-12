@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supplier Integration App — Standalone Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.25s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 h-screen flex overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="w-60 bg-gray-900 text-gray-300 flex flex-col flex-shrink-0">
+    <div class="p-4 border-b border-gray-800">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-sm">F</div>
+        <div>
+          <div class="font-bold text-white text-base leading-tight">Foodsight ERP</div>
+          <div class="text-xs text-gray-400">Supplier Integration</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-1 p-3 space-y-1">
+      <button onclick="navigateView('suppliers')" id="nav-suppliers" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        Suppliers
+      </button>
+      <button onclick="navigateView('new-connection'); setWizardStep(1);" id="nav-new-connection" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-300 hover:bg-gray-800">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        New Connection
+      </button>
+      <button onclick="navigateView('catalog')" id="nav-catalog" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-300 hover:bg-gray-800">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        Product Catalog
+      </button>
+      <button onclick="navigateView('orders')" id="nav-orders" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-300 hover:bg-gray-800">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Orders
+      </button>
+    </nav>
+
+    <div class="p-3 border-t border-gray-800">
+      <label class="flex items-center gap-2 text-xs cursor-pointer text-gray-400 hover:text-white">
+        <input type="checkbox" id="insights-toggle" checked onchange="toggleInsights(this.checked)" class="rounded border-gray-700 bg-gray-800 text-blue-600 focus:ring-0">
+        <span>Show PM Insights</span>
+      </label>
+      <div class="mt-2 text-[11px] text-gray-500">Standalone Demo Mode</div>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 flex flex-col overflow-hidden bg-gray-50">
+    <!-- Top breadcrumb bar -->
+    <header class="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between text-sm">
+      <div class="flex items-center gap-2 text-gray-500" id="breadcrumb-bar">
+        <span class="text-gray-900 font-medium">Suppliers</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+          Demo Version
+        </span>
+      </div>
+    </header>
+
+    <!-- Scrollable container -->
+    <div id="content-container" class="flex-1 overflow-y-auto p-6">
+      <!-- Screen 1: Suppliers View -->
+      <section id="view-suppliers" class="fade-in block">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h1 class="text-xl font-bold text-gray-900">Connected Suppliers</h1>
+            <p class="text-xs text-gray-500 mt-0.5">Manage live supplier integrations, check sync health, and configure endpoints.</p>
+          </div>
+          <button onclick="navigateView('new-connection'); setWizardStep(1);" class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Add New Supplier
+          </button>
+        </div>
+
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold">
+              <tr>
+                <th class="text-left py-3 px-4">Supplier</th>
+                <th class="text-left py-3 px-4">Status</th>
+                <th class="text-left py-3 px-4">Auth Type</th>
+                <th class="text-left py-3 px-4">Last Synced</th>
+                <th class="text-left py-3 px-4">Products Mapped</th>
+                <th class="text-right py-3 px-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr class="hover:bg-gray-50/60">
+                <td class="py-3 px-4 font-medium text-gray-900">Sysco Foods</td>
+                <td class="py-3 px-4"><span class="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Connected</span></td>
+                <td class="py-3 px-4 text-gray-600">OAuth 2.0</td>
+                <td class="py-3 px-4 text-gray-600">12 min ago</td>
+                <td class="py-3 px-4 text-gray-600">1,240</td>
+                <td class="py-3 px-4 text-right space-x-3 text-xs">
+                  <button onclick="alert('Connection test successful! Latency: 280ms.')" class="text-blue-600 hover:underline font-medium">Test Connection</button>
+                  <button onclick="navigateView('new-connection'); setWizardStep(3);" class="text-blue-600 hover:underline font-medium">Edit Mapping</button>
+                  <button onclick="alert('Supplier Sysco Foods disconnected.')" class="text-red-600 hover:underline font-medium">Disconnect</button>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50/60">
+                <td class="py-3 px-4 font-medium text-gray-900">Global Produce Co</td>
+                <td class="py-3 px-4">
+                  <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Error</span>
+                  <div class="text-xs text-red-600 mt-1">401 Unauthorized — API key expired</div>
+                </td>
+                <td class="py-3 px-4 text-gray-600">API Key</td>
+                <td class="py-3 px-4 text-gray-600">3 days ago</td>
+                <td class="py-3 px-4 text-gray-600">0</td>
+                <td class="py-3 px-4 text-right space-x-3 text-xs">
+                  <button onclick="navigateView('new-connection'); setWizardStep(1);" class="text-blue-600 hover:underline font-medium">Re-authenticate</button>
+                  <button onclick="navigateView('new-connection'); setWizardStep(3);" class="text-blue-600 hover:underline font-medium">Edit Mapping</button>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50/60">
+                <td class="py-3 px-4 font-medium text-gray-900">Pacific Seafood Direct</td>
+                <td class="py-3 px-4"><span class="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Not Tested</span></td>
+                <td class="py-3 px-4 text-gray-600">Basic Auth</td>
+                <td class="py-3 px-4 text-gray-600">Never</td>
+                <td class="py-3 px-4 text-gray-600">0</td>
+                <td class="py-3 px-4 text-right space-x-3 text-xs">
+                  <button onclick="navigateView('new-connection'); setWizardStep(1);" class="text-blue-600 hover:underline font-medium">Configure</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pm-insight bg-amber-50 border border-amber-200 rounded-lg p-3.5 flex gap-2.5 text-sm text-amber-900 mt-4">
+          <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          <div><span class="font-semibold">PM Decision: </span>Surfacing connection health (not just "connected/disconnected") on the main list was a deliberate call — supplier API outages are common, and buyers need to see a stale/broken connection before they try to place an order against it, not after it fails silently.</div>
+        </div>
+      </section>
+
+      <!-- Screen 2: New Connection Wizard -->
+      <section id="view-new-connection" class="fade-in hidden">
+        <h1 class="text-xl font-bold text-gray-900 mb-4">New Supplier Connection</h1>
+        
+        <!-- Wizard Stepper -->
+        <div class="flex items-center gap-2 mb-6" id="wizard-steps-header">
+          <div id="step-tab-1" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-600 text-white shadow-xs">
+            <span>1</span> Connect
+          </div>
+          <div class="w-6 h-px bg-gray-300"></div>
+          <div id="step-tab-2" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+            <span>2</span> Discover
+          </div>
+          <div class="w-6 h-px bg-gray-300"></div>
+          <div id="step-tab-3" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+            <span>3</span> Map Fields
+          </div>
+          <div class="w-6 h-px bg-gray-300"></div>
+          <div id="step-tab-4" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+            <span>4</span> Review
+          </div>
+        </div>
+
+        <!-- Step 1: Connect -->
+        <div id="step-1-content" class="max-w-2xl">
+          <div class="bg-white rounded-lg border border-gray-200 p-6 space-y-4 shadow-xs">
+            <div>
+              <label class="text-sm font-medium text-gray-700 block mb-1">Supplier Name</label>
+              <input class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" value="Pacific Seafood Direct">
+            </div>
+            <div>
+              <label class="text-sm font-medium text-gray-700 block mb-1">API Base URL</label>
+              <input class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none" value="https://api.pacificseafood.com/v2">
+            </div>
+            <div>
+              <label class="text-sm font-medium text-gray-700 block mb-1">Auth Type</label>
+              <select id="auth-type-select" onchange="changeAuthType(this.value)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="API Key">API Key</option>
+                <option value="OAuth 2.0">OAuth 2.0</option>
+                <option value="Basic Auth">Basic Auth</option>
+              </select>
+            </div>
+            <div id="auth-key-fields">
+              <label class="text-sm font-medium text-gray-700 block mb-1">API Key</label>
+              <input type="password" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" value="ps_live_981a28cb71903e">
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-gray-700 block mb-2">Environment</label>
+              <div class="flex gap-2">
+                <button type="button" class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white">Sandbox</button>
+                <button type="button" class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">Production</button>
+              </div>
+              <div class="text-xs text-gray-500 mt-1">We recommend testing in Sandbox before connecting Production.</div>
+            </div>
+
+            <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer pt-2 border-t border-gray-100">
+              <input type="checkbox" id="simulate-fail" class="rounded text-blue-600">
+              Demo: simulate a failed connection
+            </label>
+
+            <button type="button" id="btn-test" onclick="runTestConnection()" class="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+              <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>Test Connection</span>
+            </button>
+
+            <div id="test-alert-success" class="hidden bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+              <div class="font-medium">Connection successful — API responded in 340ms</div>
+              <div class="text-xs mt-0.5">Discovered 3 endpoints: Products, Inventory, Pricing</div>
+            </div>
+
+            <div id="test-alert-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+              <div class="font-medium">Connection failed: 401 Unauthorized</div>
+              <div class="text-xs mt-0.5">Check credentials and try again.</div>
+            </div>
+          </div>
+
+          <div class="pm-insight bg-amber-50 border border-amber-200 rounded-lg p-3.5 flex gap-2.5 text-sm text-amber-900 mt-4">
+            <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <div><span class="font-semibold">PM Decision: </span>Sandbox is the default environment, not Production — a small default that prevents a rushed integration from accidentally hitting a supplier's live order system during initial setup.</div>
+          </div>
+
+          <div class="flex justify-end mt-4">
+            <button id="btn-next-to-discover" onclick="setWizardStep(2); startDiscovery();" class="px-5 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition">
+              Next: Discover Fields &rarr;
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Discover -->
+        <div id="step-2-content" class="max-w-2xl hidden">
+          <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-xs">
+            <div class="text-sm font-medium text-gray-700 mb-2">Scanning supplier API schema...</div>
+            <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+              <div id="discover-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 20%"></div>
+            </div>
+            <div id="discover-label" class="text-xs text-gray-500">Scanning endpoints...</div>
+
+            <div id="discover-summary" class="mt-6 grid grid-cols-3 gap-3">
+              <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                <div class="text-2xl font-bold text-green-700">9</div>
+                <div class="text-xs text-green-700 mt-1">High Confidence Matches</div>
+              </div>
+              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
+                <div class="text-2xl font-bold text-yellow-700">3</div>
+                <div class="text-xs text-yellow-700 mt-1">Needs Review</div>
+              </div>
+              <div class="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                <div class="text-2xl font-bold text-red-700">2</div>
+                <div class="text-xs text-red-700 mt-1">Unmapped</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pm-insight bg-amber-50 border border-amber-200 rounded-lg p-3.5 flex gap-2.5 text-sm text-amber-900 mt-4">
+            <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <div><span class="font-semibold">PM Decision: </span>Auto-mapping does the first pass, but confidence scores below ~85% require human review — preventing wrong PO values before activation.</div>
+          </div>
+
+          <div class="flex justify-between mt-4">
+            <button onclick="setWizardStep(1)" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">&larr; Back</button>
+            <button onclick="setWizardStep(3)" class="px-5 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition">Next: Map Fields &rarr;</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Map Fields -->
+        <div id="step-3-content" class="max-w-4xl hidden">
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold">
+                <tr>
+                  <th class="text-left py-2.5 px-4">Supplier API Field</th>
+                  <th class="text-left py-2.5 px-4">Sample Value</th>
+                  <th class="text-left py-2.5 px-4">ERP Field</th>
+                  <th class="text-left py-2.5 px-4">Confidence</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 text-xs">
+                <tr>
+                  <td class="py-2.5 px-4 font-mono">upc_code</td>
+                  <td class="py-2.5 px-4 text-gray-500">041220576453</td>
+                  <td class="py-2.5 px-4"><span class="font-medium text-gray-800">UPC / GTIN</span></td>
+                  <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">97%</span></td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-4 font-mono">unit_price</td>
+                  <td class="py-2.5 px-4 text-gray-500">24.99</td>
+                  <td class="py-2.5 px-4"><span class="font-medium text-gray-800">Unit Price</span></td>
+                  <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">95%</span></td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-4 font-mono">qty_available</td>
+                  <td class="py-2.5 px-4 text-gray-500">480</td>
+                  <td class="py-2.5 px-4"><span class="font-medium text-gray-800">Available Qty</span></td>
+                  <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">92%</span></td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-4 font-mono">pack_uom</td>
+                  <td class="py-2.5 px-4 text-gray-500">CASE-12</td>
+                  <td class="py-2.5 px-4"><span class="font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded">UOM (needs conversion x12)</span></td>
+                  <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">60%</span></td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-4 font-mono">sup_sku</td>
+                  <td class="py-2.5 px-4 text-gray-500">SF-4471</td>
+                  <td class="py-2.5 px-4"><span class="font-medium text-gray-800">Supplier SKU</span></td>
+                  <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">96%</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pm-insight bg-amber-50 border border-amber-200 rounded-lg p-3.5 flex gap-2.5 text-sm text-amber-900 mt-4">
+            <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <div><span class="font-semibold">PM Decision: </span>The "pack_uom" row maps at only 60% because it requires unit conversion (Case of 12 &rarr; Each) — rather than silently assuming 1:1, we require explicit confirmation.</div>
+          </div>
+
+          <div class="flex justify-between mt-4">
+            <button onclick="setWizardStep(2)" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">&larr; Back</button>
+            <button onclick="setWizardStep(4)" class="px-5 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition">Save Mapping & Continue &rarr;</button>
+          </div>
+        </div>
+
+        <!-- Step 4: Review -->
+        <div id="step-4-content" class="max-w-2xl hidden">
+          <div class="bg-white rounded-lg border border-gray-200 p-6 space-y-5 shadow-xs">
+            <div>
+              <div class="text-sm font-semibold text-gray-900 mb-1">Mapping Summary</div>
+              <div class="text-xs text-gray-600">10 fields mapped — 9 automatic, 1 adjusted (pack_uom conversion factor: 12).</div>
+            </div>
+
+            <div class="border-t border-gray-100 pt-4">
+              <label class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-700">Enable scheduled sync</span>
+                <input type="checkbox" checked class="rounded text-blue-600">
+              </label>
+              <select class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                <option>Real-time (webhook)</option>
+                <option selected>Every 15 minutes</option>
+                <option>Hourly</option>
+                <option>Daily</option>
+              </select>
+            </div>
+
+            <div class="border-t border-gray-100 pt-4">
+              <label class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-700">Require approval for orders above</span>
+                <input type="checkbox" checked class="rounded text-blue-600">
+              </label>
+              <div class="flex items-center gap-2">
+                <span class="text-gray-500 text-sm">$</span>
+                <input value="5,000" class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-32">
+              </div>
+            </div>
+          </div>
+
+          <div class="pm-insight bg-amber-50 border border-amber-200 rounded-lg p-3.5 flex gap-2.5 text-sm text-amber-900 mt-4">
+            <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <div><span class="font-semibold">PM Decision: </span>The approval threshold is a mandatory compliance control preventing accidental 10x quantity test orders from reaching live suppliers.</div>
+          </div>
+
+          <div class="flex justify-between mt-4">
+            <button onclick="setWizardStep(3)" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">&larr; Back</button>
+            <button onclick="navigateView('suppliers'); alert('Supplier connection activated successfully!');" class="px-5 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 shadow-sm transition">
+              ✓ Activate Supplier Connection
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Catalog -->
+      <section id="view-catalog" class="fade-in hidden">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4">
+          <div class="flex flex-1 items-center gap-3">
+            <div class="relative flex-1 max-w-md">
+              <input type="text" id="catalog-search-input" oninput="filterCatalog()" placeholder="Search by product name, UPC, or SKU (e.g. SF-4471, Whole Milk)..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            </div>
+            <select id="catalog-supplier-select" onchange="filterCatalog()" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="All">All Suppliers</option>
+              <option value="Sysco Foods">Sysco Foods</option>
+              <option value="Global Produce Co">Global Produce Co</option>
+            </select>
+          </div>
+          <div class="text-xs text-gray-500 self-center" id="catalog-count-label">
+            Showing 8 items
+          </div>
+        </div>
+
+        <!-- Off-Catalog Warning & Order Form (shown when SKU/product not in catalog) -->
+        <div id="off-catalog-box" class="hidden mb-6 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5 shadow-xs">
+          <div class="flex items-start gap-3">
+            <div class="p-2 bg-amber-100 text-amber-800 rounded-lg flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <h3 class="font-semibold text-amber-900 text-base">
+                  Product is not part of your product catalog
+                </h3>
+                <span class="px-2 py-0.5 bg-amber-200/70 text-amber-900 rounded font-mono text-xs font-semibold" id="off-catalog-sku-display">
+                  SKU / Query
+                </span>
+              </div>
+              <p class="text-xs text-amber-800 mt-1">
+                We checked your master ERP catalog, and no matching SKU, UPC, or product title was found.
+                You can create a purchase order for it directly from one of your integrated suppliers below:
+              </p>
+
+              <div class="mt-4 p-4 bg-white/90 rounded-lg border border-amber-200 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">Integrated Supplier</label>
+                  <select id="off-cat-supplier" class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white">
+                    <option value="Sysco Foods">Sysco Foods (Connected)</option>
+                    <option value="Pacific Seafood Direct">Pacific Seafood Direct (Connected)</option>
+                    <option value="Global Produce Co">Global Produce Co</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">Item Title / Description</label>
+                  <input id="off-cat-name" placeholder="Item description" class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">Est. Unit Price ($)</label>
+                  <input id="off-cat-price" type="number" step="0.01" value="24.50" class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white font-mono">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">Quantity</label>
+                  <input id="off-cat-qty" type="number" min="1" value="5" class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white font-mono">
+                </div>
+
+                <div class="md:col-span-4 flex items-center justify-between pt-2 border-t border-gray-100">
+                  <span class="text-xs text-gray-500">Destination: WH-CA-04 (West Coast Hub)</span>
+                  <button onclick="addOffCatalogToOrder()" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-700 transition">
+                    + Create Order with Integrated Supplier &rarr;
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold text-xs">
+              <tr>
+                <th class="py-2.5 px-4 w-10"></th>
+                <th class="text-left py-2.5 px-4">Product</th>
+                <th class="text-left py-2.5 px-4">UPC / SKU</th>
+                <th class="text-left py-2.5 px-4">Supplier</th>
+                <th class="text-left py-2.5 px-4">Price</th>
+                <th class="text-left py-2.5 px-4">Available Qty</th>
+                <th class="text-left py-2.5 px-4">Warehouse</th>
+                <th class="text-left py-2.5 px-4">Lead Time</th>
+                <th class="text-left py-2.5 px-4">ERP Match</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100" id="catalog-tbody">
+              <!-- Dynamically rendered by filterCatalog() -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-4 flex justify-end">
+          <button onclick="createOrderFromSelectedCatalog()" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg shadow-sm font-semibold text-sm hover:bg-blue-700 transition">
+            Create Order from Selected Items &rarr;
+          </button>
+        </div>
+      </section>
+
+      <!-- Screen 4: Orders -->
+      <section id="view-orders" class="fade-in hidden">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h1 class="text-xl font-bold text-gray-900">Purchase Order — Sysco Foods</h1>
+            <p class="text-xs text-gray-500 mt-0.5">Line totals recalculate dynamically as you adjust item quantities.</p>
+          </div>
+          <button onclick="resetOrderForm()" class="text-xs font-semibold text-blue-600 hover:underline">
+            + Reset Order
+          </button>
+        </div>
+
+        <div id="order-form-box" class="max-w-4xl">
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs mb-4">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600 text-xs">
+                <tr>
+                  <th class="text-left py-2.5 px-4">Item</th>
+                  <th class="text-left py-2.5 px-4">Supplier</th>
+                  <th class="text-left py-2.5 px-4">Warehouse</th>
+                  <th class="text-left py-2.5 px-4">Qty</th>
+                  <th class="text-right py-2.5 px-4">Unit Price</th>
+                  <th class="text-right py-2.5 px-4">Line Total</th>
+                  <th class="w-10"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100" id="order-items-tbody">
+                <!-- Dynamically rendered with interactive quantity inputs -->
+              </tbody>
+              <tfoot>
+                <tr class="bg-gray-50 border-t border-gray-200 font-bold">
+                  <td colspan="5" class="py-3 px-4 text-right text-gray-700">Order Total:</td>
+                  <td class="py-3 px-4 text-right text-base text-gray-900 font-mono" id="order-total-display">$0.00</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div id="compliance-alert" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-3.5 flex items-center gap-2.5 text-sm text-yellow-800 mb-4">
+            <svg class="w-5 h-5 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div>
+              <span class="font-semibold">Compliance Approval Required:</span> This order exceeds the $5,000 threshold and will route to your manager for sign-off.
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button onclick="submitDemoOrder()" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm transition">
+              ✓ Submit Order to Supplier
+            </button>
+            <button onclick="navigateView('catalog')" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">
+              + Add Items from Catalog
+            </button>
+          </div>
+        </div>
+
+        <div id="order-success-box" class="hidden max-w-4xl bg-green-50 border border-green-200 rounded-lg p-5">
+          <div class="flex items-center gap-2 text-green-800 font-semibold mb-2">
+            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Order Submitted Successfully
+          </div>
+          <div class="text-sm text-green-700 space-y-1.5">
+            <div>PO Number: <span class="font-mono font-semibold text-green-900 bg-green-100/70 px-2 py-0.5 rounded border border-green-300" id="submitted-po-number">PO-20522</span></div>
+            <div>Submitted: Just now</div>
+            <div>Final Order Total: <span class="font-bold font-mono" id="submitted-po-total">$0.00</span></div>
+            <div>Status: <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">Pending Acknowledgment</span></div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-green-200">
+            <button onclick="resetOrderForm()" class="px-4 py-1.5 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700">
+              Create Another Order
+            </button>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div class="mt-8 max-w-4xl">
+          <div class="font-semibold text-gray-900 text-sm mb-2">Order History</div>
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold text-xs">
+                <tr>
+                  <th class="text-left py-2 px-4">PO Number</th>
+                  <th class="text-left py-2 px-4">Supplier</th>
+                  <th class="text-left py-2 px-4">Date</th>
+                  <th class="text-left py-2 px-4">Total</th>
+                  <th class="text-left py-2 px-4">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 text-xs" id="history-tbody">
+                <tr>
+                  <td class="py-2.5 px-4 font-mono text-gray-700">PO-20481</td>
+                  <td class="py-2.5 px-4 text-gray-700">Sysco Foods</td>
+                  <td class="py-2.5 px-4 text-gray-500">Jul 18, 2026</td>
+                  <td class="py-2.5 px-4 font-semibold text-gray-900">$1,204.50</td>
+                  <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Acknowledged</span></td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-4 font-mono text-gray-700">PO-20455</td>
+                  <td class="py-2.5 px-4 text-gray-700">Sysco Foods</td>
+                  <td class="py-2.5 px-4 text-gray-500">Jul 12, 2026</td>
+                  <td class="py-2.5 px-4 font-semibold text-gray-900">$842.00</td>
+                  <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Partially Fulfilled</span></td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-4 font-mono text-gray-700">PO-20390</td>
+                  <td class="py-2.5 px-4 text-gray-700">Global Produce Co</td>
+                  <td class="py-2.5 px-4 text-gray-500">Jul 5, 2026</td>
+                  <td class="py-2.5 px-4 font-semibold text-gray-900">$310.25</td>
+                  <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Rejected</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    let currentView = 'suppliers';
+    let currentStep = 1;
+
+    // Full catalog dataset
+    const catalogData = [
+      { name: 'Whole Milk 1 Gal', upc: '041220576453', sku: 'SF-4471', price: 3.29, qty: 480, wh: 'WH-CA-04', lead: '2 days', match: 'ITEM-00291', supplier: 'Sysco Foods' },
+      { name: 'Roma Tomatoes Case', upc: '041220991823', sku: 'SF-2210', price: 24.99, qty: 120, wh: 'WH-CA-04', lead: '2 days', match: 'ITEM-00587', priceBreak: 'Buy 50+, drops to $21.50', supplier: 'Sysco Foods' },
+      { name: 'Chicken Breast 40lb', upc: '041229981223', sku: 'SF-9981', price: 89.50, qty: 60, wh: 'WH-AZ-01', lead: '3 days', match: null, supplier: 'Sysco Foods' },
+      { name: 'Romaine Lettuce Case', upc: '041220112233', sku: 'SF-3312', price: 18.75, qty: 200, wh: 'WH-CA-04', lead: '1 day', match: 'ITEM-00612', supplier: 'Global Produce Co' },
+      { name: 'Cheddar Cheese Block 5lb', upc: '041229001122', sku: 'SF-5541', price: 14.20, qty: 340, wh: 'WH-CA-04', lead: '2 days', match: 'ITEM-00933', supplier: 'Sysco Foods' },
+      { name: 'Frozen Fries 30lb', upc: '041220778812', sku: 'SF-7712', price: 22.10, qty: 0, wh: 'WH-AZ-01', lead: '5 days', match: null, supplier: 'Sysco Foods' },
+      { name: 'Large Eggs 15dz', upc: '041220334455', sku: 'SF-1290', price: 31.40, qty: 150, wh: 'WH-CA-04', lead: '1 day', match: 'ITEM-00445', supplier: 'Sysco Foods' },
+      { name: 'Ground Beef 80/20 40lb', upc: '041229556677', sku: 'SF-8834', price: 112.00, qty: 90, wh: 'WH-AZ-01', lead: '3 days', match: 'ITEM-00778', supplier: 'Sysco Foods' }
+    ];
+
+    // Selected catalog indices
+    let selectedCatalogIndices = [1, 4];
+
+    // Order items array
+    let orderItems = [
+      { id: 'SF-2210', name: 'Roma Tomatoes Case', sku: 'SF-2210', supplier: 'Sysco Foods', wh: 'WH-CA-04', qty: 5, price: 24.99 },
+      { id: 'SF-5541', name: 'Cheddar Cheese Block 5lb', sku: 'SF-5541', supplier: 'Sysco Foods', wh: 'WH-CA-04', qty: 10, price: 14.20 }
+    ];
+
+    function navigateView(view) {
+      currentView = view;
+      ['suppliers', 'new-connection', 'catalog', 'orders'].forEach(v => {
+        const el = document.getElementById('view-' + v);
+        const nav = document.getElementById('nav-' + v);
+        if (v === view) {
+          el.classList.remove('hidden');
+          nav.classList.add('bg-blue-600', 'text-white');
+          nav.classList.remove('text-gray-300', 'hover:bg-gray-800');
+        } else {
+          el.classList.add('hidden');
+          nav.classList.remove('bg-blue-600', 'text-white');
+          nav.classList.add('text-gray-300', 'hover:bg-gray-800');
+        }
+      });
+
+      const crumbs = {
+        'suppliers': 'Suppliers',
+        'new-connection': 'Suppliers &gt; Pacific Seafood Direct',
+        'catalog': 'Product Catalog',
+        'orders': 'Orders'
+      };
+      document.getElementById('breadcrumb-bar').innerHTML = '<span class="text-gray-900 font-medium">' + crumbs[view] + '</span>';
+
+      if (view === 'catalog') filterCatalog();
+      if (view === 'orders') renderOrderItems();
+    }
+
+    function setWizardStep(step) {
+      currentStep = step;
+      [1, 2, 3, 4].forEach(s => {
+        const tab = document.getElementById('step-tab-' + s);
+        const content = document.getElementById('step-' + s + '-content');
+        if (content) {
+          if (s === step) {
+            content.classList.remove('hidden');
+          } else {
+            content.classList.add('hidden');
+          }
+        }
+        if (s < step) {
+          tab.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-700';
+          tab.innerHTML = '✓ ' + ['Connect', 'Discover', 'Map Fields', 'Review'][s - 1];
+        } else if (s === step) {
+          tab.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-600 text-white shadow-xs';
+          tab.innerHTML = '<span>' + s + '</span> ' + ['Connect', 'Discover', 'Map Fields', 'Review'][s - 1];
+        } else {
+          tab.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500';
+          tab.innerHTML = '<span>' + s + '</span> ' + ['Connect', 'Discover', 'Map Fields', 'Review'][s - 1];
+        }
+      });
+    }
+
+    function toggleInsights(show) {
+      document.querySelectorAll('.pm-insight').forEach(el => {
+        el.style.display = show ? 'flex' : 'none';
+      });
+    }
+
+    function runTestConnection() {
+      const btn = document.getElementById('btn-test');
+      const fail = document.getElementById('simulate-fail').checked;
+      btn.innerHTML = '<span class="inline-block animate-spin mr-1">↻</span> Testing...';
+      document.getElementById('test-alert-success').classList.add('hidden');
+      document.getElementById('test-alert-error').classList.add('hidden');
+      setTimeout(() => {
+        btn.innerHTML = '<svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> <span>Test Connection</span>';
+        if (fail) {
+          document.getElementById('test-alert-error').classList.remove('hidden');
+        } else {
+          document.getElementById('test-alert-success').classList.remove('hidden');
+        }
+      }, 700);
+    }
+
+    function startDiscovery() {
+      const bar = document.getElementById('discover-bar');
+      const label = document.getElementById('discover-label');
+      let progress = 20;
+      bar.style.width = '20%';
+      label.innerText = 'Scanning endpoints...';
+      const interval = setInterval(() => {
+        progress += 25;
+        if (progress >= 100) {
+          progress = 100;
+          bar.style.width = '100%';
+          label.innerText = '100% complete — 14 fields discovered.';
+          clearInterval(interval);
+        } else {
+          bar.style.width = progress + '%';
+          label.innerText = progress + '% complete...';
+        }
+      }, 250);
+    }
+
+    // Catalog filtering by name, UPC, SKU
+    function filterCatalog() {
+      const query = (document.getElementById('catalog-search-input')?.value || '').trim().toLowerCase();
+      const supplierFilter = document.getElementById('catalog-supplier-select')?.value || 'All';
+
+      const filtered = catalogData.filter((p, idx) => {
+        const matchesSupplier = (supplierFilter === 'All') || (p.supplier === supplierFilter);
+        if (!matchesSupplier) return false;
+        if (!query) return true;
+        return p.name.toLowerCase().includes(query) ||
+               p.upc.toLowerCase().includes(query) ||
+               p.sku.toLowerCase().includes(query);
+      });
+
+      const tbody = document.getElementById('catalog-tbody');
+      const offCatalogBox = document.getElementById('off-catalog-box');
+      const countLabel = document.getElementById('catalog-count-label');
+
+      if (countLabel) countLabel.innerText = `Showing ${filtered.length} of ${catalogData.length} items`;
+
+      // Show/hide off-catalog order form when search yields 0 matches
+      if (query.length > 0 && filtered.length === 0) {
+        offCatalogBox.classList.remove('hidden');
+        document.getElementById('off-catalog-sku-display').innerText = `SKU / Query: "${query}"`;
+        document.getElementById('off-cat-name').value = `Item (${query.toUpperCase()})`;
+      } else {
+        offCatalogBox.classList.add('hidden');
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-sm text-gray-500">No products found matching "${query}". Use the off-catalog order form above to order it from an integrated supplier.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((p) => {
+        const origIdx = catalogData.indexOf(p);
+        const isChecked = selectedCatalogIndices.includes(origIdx);
+        return `
+          <tr class="hover:bg-gray-50/50">
+            <td class="py-2.5 px-4">
+              <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleCatalogSelect(${origIdx}, this.checked)" class="rounded text-blue-600">
+            </td>
+            <td class="py-2.5 px-4">
+              <div class="font-medium text-gray-900">${p.name}</div>
+              ${p.priceBreak ? `<div class="text-xs text-blue-600 font-medium">${p.priceBreak}</div>` : ''}
+            </td>
+            <td class="py-2.5 px-4 font-mono text-xs text-gray-500">
+              <div>${p.upc}</div>
+              <div class="text-[11px] text-gray-400">SKU: ${p.sku}</div>
+            </td>
+            <td class="py-2.5 px-4 text-xs text-gray-600 font-medium">${p.supplier}</td>
+            <td class="py-2.5 px-4 font-semibold text-gray-900">$${p.price.toFixed(2)}</td>
+            <td class="py-2.5 px-4 ${p.qty === 0 ? 'text-red-600 font-semibold' : 'text-gray-700'}">${p.qty}</td>
+            <td class="py-2.5 px-4 text-gray-600">${p.wh}</td>
+            <td class="py-2.5 px-4 text-gray-600">${p.lead}</td>
+            <td class="py-2.5 px-4">
+              ${p.match ? `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">${p.match}</span>` : `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">No Match</span>`}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleCatalogSelect(idx, checked) {
+      if (checked) {
+        if (!selectedCatalogIndices.includes(idx)) selectedCatalogIndices.push(idx);
+      } else {
+        selectedCatalogIndices = selectedCatalogIndices.filter(i => i !== idx);
+      }
+    }
+
+    function createOrderFromSelectedCatalog() {
+      if (selectedCatalogIndices.length > 0) {
+        orderItems = selectedCatalogIndices.map(idx => {
+          const p = catalogData[idx];
+          return {
+            id: p.sku + '-' + Date.now(),
+            name: p.name,
+            sku: p.sku,
+            supplier: p.supplier,
+            wh: p.wh,
+            qty: 2,
+            price: p.price
+          };
+        });
+      }
+      resetOrderForm();
+      navigateView('orders');
+    }
+
+    function addOffCatalogToOrder() {
+      const supplier = document.getElementById('off-cat-supplier').value;
+      const name = document.getElementById('off-cat-name').value || 'Custom Item';
+      const price = parseFloat(document.getElementById('off-cat-price').value) || 25.00;
+      const qty = parseInt(document.getElementById('off-cat-qty').value, 10) || 1;
+      const sku = (document.getElementById('catalog-search-input')?.value || 'OFF-CAT').toUpperCase();
+
+      orderItems.unshift({
+        id: 'off-' + Date.now(),
+        name: name,
+        sku: sku,
+        supplier: supplier,
+        wh: 'WH-CA-04',
+        qty: qty,
+        price: price,
+        isCustom: true
+      });
+
+      resetOrderForm();
+      navigateView('orders');
+    }
+
+    // Render Order Items with dynamic reactive quantity and line prices
+    function renderOrderItems() {
+      const tbody = document.getElementById('order-items-tbody');
+      let total = 0;
+
+      if (!orderItems || orderItems.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-sm text-gray-400">No items in this order. Select items from the Product Catalog.</td></tr>';
+        document.getElementById('order-total-display').innerText = '$0.00';
+        return;
+      }
+
+      tbody.innerHTML = orderItems.map((item, idx) => {
+        const lineTotal = item.qty * item.price;
+        total += lineTotal;
+        return `
+          <tr class="hover:bg-gray-50/20">
+            <td class="py-2.5 px-4 font-medium text-gray-900">
+              <div>${item.name} ${item.isCustom ? '<span class="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Off-Catalog</span>' : ''}</div>
+              <div class="text-xs font-mono text-gray-400">SKU: ${item.sku}</div>
+            </td>
+            <td class="py-2.5 px-4 text-xs text-gray-600">${item.supplier}</td>
+            <td class="py-2.5 px-4 text-xs text-gray-600">${item.wh}</td>
+            <td class="py-2.5 px-4">
+              <input type="number" min="1" value="${item.qty}" oninput="updateLineQty(${idx}, this.value)" class="w-20 border border-gray-300 rounded px-2 py-1 text-xs font-mono font-semibold focus:ring-2 focus:ring-blue-500">
+            </td>
+            <td class="py-2.5 px-4 text-right font-mono text-gray-700">$${item.price.toFixed(2)}</td>
+            <td class="py-2.5 px-4 text-right font-mono font-semibold text-gray-900" id="demo-line-total-${idx}">$${lineTotal.toFixed(2)}</td>
+            <td class="py-2.5 px-3 text-center">
+              <button onclick="removeOrderItem(${idx})" class="text-gray-400 hover:text-red-600 text-sm">&times;</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('order-total-display').innerText = '$' + total.toFixed(2);
+
+      // Compliance threshold check ($5,000)
+      const complianceAlert = document.getElementById('compliance-alert');
+      if (total >= 5000) {
+        complianceAlert.classList.remove('hidden');
+      } else {
+        complianceAlert.classList.add('hidden');
+      }
+    }
+
+    function updateLineQty(idx, newQty) {
+      const q = Math.max(0, parseInt(newQty, 10) || 0);
+      orderItems[idx].qty = q;
+      const lineTotal = q * orderItems[idx].price;
+      const cell = document.getElementById('demo-line-total-' + idx);
+      if (cell) cell.innerText = '$' + lineTotal.toFixed(2);
+
+      const total = orderItems.reduce((acc, it) => acc + (it.qty * it.price), 0);
+      document.getElementById('order-total-display').innerText = '$' + total.toFixed(2);
+
+      const complianceAlert = document.getElementById('compliance-alert');
+      if (total >= 5000) {
+        complianceAlert.classList.remove('hidden');
+      } else {
+        complianceAlert.classList.add('hidden');
+      }
+    }
+
+    function removeOrderItem(idx) {
+      orderItems.splice(idx, 1);
+      renderOrderItems();
+    }
+
+    function resetOrderForm() {
+      document.getElementById('order-form-box').classList.remove('hidden');
+      document.getElementById('order-success-box').classList.add('hidden');
+      renderOrderItems();
+    }
+
+    function submitDemoOrder() {
+      const total = orderItems.reduce((acc, it) => acc + (it.qty * it.price), 0);
+      const poNum = 'PO-' + Math.floor(20500 + Math.random() * 500);
+
+      document.getElementById('submitted-po-number').innerText = poNum;
+      document.getElementById('submitted-po-total').innerText = '$' + total.toFixed(2);
+
+      document.getElementById('order-form-box').classList.add('hidden');
+      document.getElementById('order-success-box').classList.remove('hidden');
+
+      // Append to history
+      const historyTbody = document.getElementById('history-tbody');
+      const newRow = `
+        <tr>
+          <td class="py-2.5 px-4 font-mono text-gray-700">${poNum}</td>
+          <td class="py-2.5 px-4 text-gray-700">${orderItems[0]?.supplier || 'Sysco Foods'}</td>
+          <td class="py-2.5 px-4 text-gray-500">Just now</td>
+          <td class="py-2.5 px-4 font-semibold text-gray-900">$${total.toFixed(2)}</td>
+          <td class="py-2.5 px-4"><span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Pending</span></td>
+        </tr>
+      `;
+      historyTbody.innerHTML = newRow + historyTbody.innerHTML;
+    }
+
+    // Initialize catalog table on load
+    filterCatalog();
+  </script>
+</body>
+</html>
+

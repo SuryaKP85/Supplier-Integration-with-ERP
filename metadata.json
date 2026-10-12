@@ -1,6 +1,6 @@
 {
-  "name": "Supplier Integration ERP",
-  "description": "An interactive Supplier Integration ERP module for managing connected suppliers, field mapping, product catalogs, and purchase order sync.",
+  "name": "Supplier Integration App",
+  "description": "Onboard suppliers, discover API schemas, map catalog fields, and manage purchase orders with built-in compliance thresholds.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

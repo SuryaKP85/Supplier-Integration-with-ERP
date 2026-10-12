@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState } from 'react';
 import {
   Link2,
   CheckCircle2,
@@ -10,43 +9,73 @@ import {
   Plus,
   ChevronRight,
   ChevronLeft,
-  Settings,
   Package,
   Warehouse,
   DollarSign,
-  Clock,
   Lightbulb,
-  X,
   ArrowRight,
   Loader2,
-  ShoppingCart,
-  Truck,
-  FileSearch
+  AlertCircle,
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 
-import {
-  SalesOrderLine,
-  SupplierResult,
-  PoDraft,
-  Supplier,
-  SupplierField,
-  CatalogProduct,
-  OrderHistoryItem
-} from './types';
+interface Supplier {
+  id: number;
+  name: string;
+  status: string;
+  auth: string;
+  lastSync: string;
+  products: number;
+  error?: string;
+}
 
-import {
-  mockSupplierAvailability,
-  initialSuppliers,
-  supplierFields as initialSupplierFields,
-  catalogProducts as initialCatalogProducts,
-  orderHistory as initialOrderHistory
-} from './data';
+interface SupplierField {
+  field: string;
+  sample: string;
+  type: string;
+  erpField: string;
+  confidence: number;
+}
+
+interface CatalogProduct {
+  name: string;
+  upc: string;
+  sku: string;
+  price: number;
+  qty: number;
+  wh: string;
+  lead: string;
+  match: string | null;
+  priceBreak?: string;
+  supplier: string;
+}
+
+interface OrderHistoryItem {
+  po: string;
+  supplier: string;
+  date: string;
+  total: string;
+  status: string;
+}
+
+interface OrderItem {
+  id: string;
+  name: string;
+  upc: string;
+  sku: string;
+  price: number;
+  qty: number;
+  wh: string;
+  supplier: string;
+  isCustom?: boolean;
+}
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<string>('sales-order');
+  const [currentView, setCurrentView] = useState<string>('suppliers');
   const [wizardStep, setWizardStep] = useState<number>(1);
   const [showInsights, setShowInsights] = useState<boolean>(true);
-  const [testStatus, setTestStatus] = useState<null | 'loading' | 'success' | 'error'>(null);
+  const [testStatus, setTestStatus] = useState<'loading' | 'success' | 'error' | null>(null);
   const [simulateFailure, setSimulateFailure] = useState<boolean>(false);
   const [discoveryProgress, setDiscoveryProgress] = useState<number>(0);
   const [discoveryDone, setDiscoveryDone] = useState<boolean>(false);
@@ -54,631 +83,330 @@ export default function App() {
   const [orderSubmitted, setOrderSubmitted] = useState<boolean>(false);
   const [poNumber, setPoNumber] = useState<string | null>(null);
   const [authType, setAuthType] = useState<string>('API Key');
+  const [approvalThreshold] = useState<number>(5000);
 
-  // Supplier wizard fields
-  const [newSupplierName, setNewSupplierName] = useState<string>('Pacific Seafood Direct');
-  const [newSupplierUrl, setNewSupplierUrl] = useState<string>('https://api.pacificseafood.com/v2');
+  // Catalog search & filter states
+  const [catalogSearch, setCatalogSearch] = useState<string>('');
+  const [catalogSupplierFilter, setCatalogSupplierFilter] = useState<string>('All Suppliers');
 
-  // Active state lists to support live user actions and creation
-  const [suppliersList, setSuppliersList] = useState<Supplier[]>(initialSuppliers);
-  const [orderHistoryList, setOrderHistoryList] = useState<OrderHistoryItem[]>(initialOrderHistory);
-  const [catalogList, setCatalogList] = useState<CatalogProduct[]>(initialCatalogProducts);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [catalogFilter, setCatalogFilter] = useState<string>('All');
+  // Off-catalog custom order form state
+  const [offCatalogSupplier, setOffCatalogSupplier] = useState<string>('Sysco Foods');
+  const [offCatalogItemName, setOffCatalogItemName] = useState<string>('');
+  const [offCatalogPrice, setOffCatalogPrice] = useState<number>(24.50);
+  const [offCatalogQty, setOffCatalogQty] = useState<number>(10);
+  const [offCatalogWh, setOffCatalogWh] = useState<string>('WH-CA-04');
 
-  // Sales Order state
-  const [salesOrderLines, setSalesOrderLines] = useState<SalesOrderLine[]>([
-    { id: 1, itemId: 'ITEM-00612', description: 'Romaine Lettuce Case', qty: 15, available: 200, price: 18.75, status: 'ok' },
-    { id: 2, itemId: 'ITEM-00778', description: 'Ground Beef 80/20 40lb', qty: 30, available: 90, price: 112.00, status: 'ok' },
-    { id: 3, itemId: 'ITEM-00XXX', description: 'Frozen Fries 30lb', qty: 25, available: 0, price: 22.10, status: 'shortage' }
+  // Order items state (fully reactive with quantities and line totals)
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([
+    {
+      id: 'SF-2210',
+      name: 'Roma Tomatoes Case',
+      upc: '041220991823',
+      sku: 'SF-2210',
+      price: 24.99,
+      qty: 2,
+      wh: 'WH-CA-04',
+      supplier: 'Sysco Foods'
+    },
+    {
+      id: 'SF-5541',
+      name: 'Cheddar Cheese Block 5lb',
+      upc: '041229001122',
+      sku: 'SF-5541',
+      price: 14.20,
+      qty: 3,
+      wh: 'WH-CA-04',
+      supplier: 'Sysco Foods'
+    }
   ]);
 
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; lineId: number } | null>(null);
-  const [supplierModalLine, setSupplierModalLine] = useState<SalesOrderLine | null>(null);
-  const [supplierCheckStatus, setSupplierCheckStatus] = useState<'loading' | 'done'>('loading');
-  const [supplierResults, setSupplierResults] = useState<SupplierResult[]>([]);
-  const [poDraft, setPoDraft] = useState<PoDraft | null>(null);
-  const [poConfirmed, setPoConfirmed] = useState<boolean>(false);
+  const [orderHistory, setOrderHistory] = useState<OrderHistoryItem[]>([
+    { po: 'PO-20481', supplier: 'Sysco Foods', date: 'Jul 18, 2026', total: '$1,204.50', status: 'Acknowledged' },
+    { po: 'PO-20455', supplier: 'Sysco Foods', date: 'Jul 12, 2026', total: '$842.00', status: 'Partially Fulfilled' },
+    { po: 'PO-20390', supplier: 'Global Produce Co', date: 'Jul 5, 2026', total: '$310.25', status: 'Rejected' }
+  ]);
 
-  // Field mapping state in wizard
-  const [mappedFields, setMappedFields] = useState<SupplierField[]>(initialSupplierFields);
+  const suppliers: Supplier[] = [
+    { id: 1, name: 'Sysco Foods', status: 'Connected', auth: 'OAuth 2.0', lastSync: '12 min ago', products: 1240 },
+    { id: 2, name: 'Global Produce Co', status: 'Error', auth: 'API Key', lastSync: '3 days ago', products: 0, error: '401 Unauthorized — API key expired' },
+    { id: 3, name: 'Pacific Seafood Direct', status: 'Not Tested', auth: 'Basic Auth', lastSync: 'Never', products: 0 }
+  ];
 
-  const openContextMenu = (e: React.MouseEvent, lineId: number) => {
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, lineId });
-  };
+  const supplierFields: SupplierField[] = [
+    { field: 'upc_code', sample: '041220576453', type: 'String', erpField: 'UPC / GTIN', confidence: 97 },
+    { field: 'unit_price', sample: '24.99', type: 'Number', erpField: 'Unit Price', confidence: 95 },
+    { field: 'currency', sample: 'USD', type: 'String', erpField: 'Currency', confidence: 99 },
+    { field: 'qty_available', sample: '480', type: 'Number', erpField: 'Available Qty', confidence: 92 },
+    { field: 'warehouse_id', sample: 'WH-CA-04', type: 'String', erpField: 'Warehouse / Location Code', confidence: 88 },
+    { field: 'pack_uom', sample: 'CASE-12', type: 'String', erpField: 'UOM (needs conversion)', confidence: 60 },
+    { field: 'lead_time', sample: '2', type: 'Number', erpField: 'Lead Time Days', confidence: 90 },
+    { field: 'mfr_part_no', sample: 'SYS-88213', type: 'String', erpField: 'Manufacturer Part Number', confidence: 55 },
+    { field: 'sup_sku', sample: 'SF-4471', type: 'String', erpField: 'Supplier SKU', confidence: 96 },
+    { field: 'promo_flag', sample: 'true', type: 'Boolean', erpField: '— Unmapped —', confidence: 0 }
+  ];
 
-  const startSupplierCheck = (line: SalesOrderLine) => {
-    setContextMenu(null);
-    setSupplierModalLine(line);
-    setSupplierCheckStatus('loading');
-    setSupplierResults([]);
-    setTimeout(() => {
-      setSupplierResults(
-        mockSupplierAvailability.map(r => ({
-          ...r,
-          qtyToOrder: line.qty
-        }))
-      );
-      setSupplierCheckStatus('done');
-    }, 1400);
-  };
+  const catalogProducts: CatalogProduct[] = [
+    { name: 'Whole Milk 1 Gal', upc: '041220576453', sku: 'SF-4471', price: 3.29, qty: 480, wh: 'WH-CA-04', lead: '2 days', match: 'ITEM-00291', supplier: 'Sysco Foods' },
+    { name: 'Roma Tomatoes Case', upc: '041220991823', sku: 'SF-2210', price: 24.99, qty: 120, wh: 'WH-CA-04', lead: '2 days', match: 'ITEM-00587', priceBreak: 'Buy 50+, drops to $21.50', supplier: 'Sysco Foods' },
+    { name: 'Chicken Breast 40lb', upc: '041229981223', sku: 'SF-9981', price: 89.50, qty: 60, wh: 'WH-AZ-01', lead: '3 days', match: null, supplier: 'Sysco Foods' },
+    { name: 'Romaine Lettuce Case', upc: '041220112233', sku: 'SF-3312', price: 18.75, qty: 200, wh: 'WH-CA-04', lead: '1 day', match: 'ITEM-00612', supplier: 'Global Produce Co' },
+    { name: 'Cheddar Cheese Block 5lb', upc: '041229001122', sku: 'SF-5541', price: 14.20, qty: 340, wh: 'WH-CA-04', lead: '2 days', match: 'ITEM-00933', supplier: 'Sysco Foods' },
+    { name: 'Frozen Fries 30lb', upc: '041220778812', sku: 'SF-7712', price: 22.10, qty: 0, wh: 'WH-AZ-01', lead: '5 days', match: null, supplier: 'Sysco Foods' },
+    { name: 'Large Eggs 15dz', upc: '041220334455', sku: 'SF-1290', price: 31.40, qty: 150, wh: 'WH-CA-04', lead: '1 day', match: 'ITEM-00445', supplier: 'Sysco Foods' },
+    { name: 'Ground Beef 80/20 40lb', upc: '041229556677', sku: 'SF-8834', price: 112.00, qty: 90, wh: 'WH-AZ-01', lead: '3 days', match: 'ITEM-00778', supplier: 'Sysco Foods' }
+  ];
 
-  const handleQtyToOrderChange = (index: number, val: string) => {
-    const qty = parseInt(val) || 0;
-    setSupplierResults(prev =>
-      prev.map((item, idx) => (idx === index ? { ...item, qtyToOrder: qty } : item))
+  // Filter catalog products based on search term (name, upc, sku) and supplier
+  const filteredCatalogProducts = catalogProducts.filter((p) => {
+    const matchesSupplier =
+      catalogSupplierFilter === 'All Suppliers' || p.supplier === catalogSupplierFilter;
+    if (!matchesSupplier) return false;
+
+    if (!catalogSearch.trim()) return true;
+    const q = catalogSearch.toLowerCase().trim();
+    return (
+      p.name.toLowerCase().includes(q) ||
+      p.upc.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q)
     );
-  };
+  });
 
-  const beginPlaceOrder = (result: SupplierResult) => {
-    if (!supplierModalLine) return;
-    setPoDraft({
-      poNumber: 'PO-' + Math.floor(20000 + Math.random() * 900),
-      supplier: result.supplier,
-      itemId: supplierModalLine.itemId,
-      description: supplierModalLine.description,
-      qty: result.qtyToOrder,
-      price: result.price,
-      warehouse: result.warehouse,
-      lead: result.lead
+  const isSearchActive = catalogSearch.trim().length > 0;
+  const noCatalogMatchFound = isSearchActive && filteredCatalogProducts.length === 0;
+
+  // Handler to create order from selected items in catalog
+  const handleCreateOrderFromSelected = () => {
+    const itemsToOrder: OrderItem[] = selectedProducts.map((idx) => {
+      const p = catalogProducts[idx];
+      return {
+        id: `${p.sku}-${Date.now()}-${idx}`,
+        name: p.name,
+        upc: p.upc,
+        sku: p.sku,
+        price: p.price,
+        qty: 1,
+        wh: p.wh,
+        supplier: p.supplier
+      };
     });
-    setPoConfirmed(false);
-    setSupplierModalLine(null);
+    setOrderItems(itemsToOrder);
+    setOrderSubmitted(false);
+    setCurrentView('orders');
   };
 
-  const confirmPO = () => {
-    if (!poDraft) return;
-    setSalesOrderLines(prev =>
-      prev.map(l =>
-        l.itemId === poDraft.itemId
-          ? { ...l, status: 'ordered', poNumber: poDraft.poNumber, poSupplier: poDraft.supplier }
-          : l
-      )
-    );
-    setPoConfirmed(true);
+  // Handler to create an off-catalog order for an unlisted SKU from integrated suppliers
+  const handleCreateOffCatalogOrder = () => {
+    const requestedSku = catalogSearch.trim().toUpperCase();
+    const itemName = offCatalogItemName.trim() || `Special Order Item (${requestedSku})`;
+    const newItem: OrderItem = {
+      id: `off-catalog-${Date.now()}`,
+      name: itemName,
+      upc: 'N/A (Off-Catalog)',
+      sku: requestedSku,
+      price: offCatalogPrice > 0 ? offCatalogPrice : 25.0,
+      qty: offCatalogQty > 0 ? offCatalogQty : 1,
+      wh: offCatalogWh,
+      supplier: offCatalogSupplier,
+      isCustom: true
+    };
+
+    setOrderItems((prev) => [newItem, ...prev]);
+    setOrderSubmitted(false);
+    setCurrentView('orders');
   };
+
+  // Update item quantity in the New Order form
+  const handleUpdateQty = (id: string, newQty: number) => {
+    const clampedQty = isNaN(newQty) ? 0 : Math.max(0, newQty);
+    setOrderItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, qty: clampedQty } : item))
+    );
+  };
+
+  // Update warehouse for a specific order line item
+  const handleUpdateWh = (id: string, newWh: string) => {
+    setOrderItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, wh: newWh } : item))
+    );
+  };
+
+  // Remove line item from order
+  const handleRemoveOrderItem = (id: string) => {
+    setOrderItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  // Compute calculated totals for the order
+  const orderTotal = orderItems.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const overThreshold = orderTotal >= approvalThreshold;
 
   const PMInsight = ({ children }: { children: React.ReactNode }) => {
     if (!showInsights) return null;
     return (
-      <div className="bg-[#1E293B] border border-slate-800 rounded-lg p-4 text-white text-xs mt-4 flex gap-3 items-start shadow-sm select-none">
-        <Lightbulb size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">PM Decision Insight</div>
-          <div className="text-slate-300 leading-relaxed font-sans">{children}</div>
-        </div>
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2 text-sm text-amber-900 mt-3" id="pm-insight">
+        <Lightbulb size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+        <div><span className="font-semibold">PM Decision: </span>{children}</div>
       </div>
     );
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
     const map: Record<string, string> = {
-      Connected: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
-      Error: 'bg-rose-50 text-rose-700 border border-rose-100',
-      'Not Tested': 'bg-slate-100 text-slate-600 border border-slate-200',
-      Acknowledged: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
-      'Partially Fulfilled': 'bg-amber-50 text-amber-700 border border-amber-100',
-      Rejected: 'bg-rose-50 text-rose-700 border border-rose-100',
-      Pending: 'bg-blue-50 text-blue-700 border border-blue-100',
-      'Pending Approval': 'bg-amber-50 text-amber-700 border border-amber-100'
+      'Connected': 'bg-green-100 text-green-700',
+      'Error': 'bg-red-100 text-red-700',
+      'Not Tested': 'bg-gray-100 text-gray-600',
+      'Acknowledged': 'bg-green-100 text-green-700',
+      'Partially Fulfilled': 'bg-yellow-100 text-yellow-700',
+      'Rejected': 'bg-red-100 text-red-700',
+      'Pending': 'bg-blue-100 text-blue-700'
     };
     return (
-      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${map[status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+      <span
+        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+          map[status] || 'bg-gray-100 text-gray-600'
+        }`}
+        id={`badge-${status.replace(/\s+/g, '-').toLowerCase()}`}
+      >
         {status}
       </span>
     );
   };
 
   const Sidebar = () => (
-    <div className="w-60 bg-[#0F172A] text-slate-300 flex flex-col flex-shrink-0 border-r border-slate-800 select-none">
-      <div className="p-4 flex items-center gap-3 border-b border-slate-800 h-14 shrink-0">
-        <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white font-bold shrink-0">
-          <Warehouse size={16} />
-        </div>
-        <div className="flex flex-col min-w-0">
-          <span className="font-bold text-white text-xs tracking-tight uppercase leading-none">Surya ERP</span>
-          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Supplier Control</span>
-        </div>
+    <div className="w-56 bg-gray-900 text-gray-300 flex flex-col flex-shrink-0" id="sidebar">
+      <div className="p-4 border-b border-gray-800" id="sidebar-header">
+        <div className="font-bold text-white text-lg">Foodsight ERP</div>
+        <div className="text-xs text-gray-500">Supplier Integration</div>
       </div>
-      <nav className="flex-1 p-3 space-y-1">
-        <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Main Console</div>
+      <nav className="flex-1 p-2 space-y-1" id="sidebar-nav">
         {[
-          { id: 'sales-order', label: 'Sales Order (Demo)', icon: ShoppingCart },
-          { id: 'suppliers', label: 'Connected Suppliers', icon: Link2 },
+          { id: 'suppliers', label: 'Suppliers', icon: Link2 },
           { id: 'new-connection', label: 'New Connection', icon: Plus },
           { id: 'catalog', label: 'Product Catalog', icon: Package },
-          { id: 'orders', label: 'Purchase Orders', icon: DollarSign }
-        ].map(item => (
+          { id: 'orders', label: 'Orders', icon: DollarSign }
+        ].map((item) => (
           <button
+            id={`nav-btn-${item.id}`}
             key={item.id}
             onClick={() => {
               setCurrentView(item.id);
-              if (item.id === 'new-connection') {
-                setWizardStep(1);
-                setTestStatus(null);
-                setDiscoveryProgress(0);
-                setDiscoveryDone(false);
-              }
+              if (item.id === 'new-connection') setWizardStep(1);
             }}
-            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
               currentView === item.id
-                ? 'bg-slate-800 text-white font-bold'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                ? 'bg-blue-600 text-white'
+                : 'hover:bg-gray-800 text-gray-300'
             }`}
           >
-            <item.icon size={14} className={currentView === item.id ? 'text-indigo-400' : 'text-slate-500'} />
-            <span>{item.label}</span>
+            <item.icon size={16} />
+            {item.label}
           </button>
         ))}
       </nav>
-      <div className="p-3.5 border-t border-slate-800 bg-slate-900/50">
-        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+      <div className="p-3 border-t border-gray-800" id="sidebar-footer">
+        <label className="flex items-center gap-2 text-xs cursor-pointer text-gray-400 hover:text-white">
           <input
             type="checkbox"
             checked={showInsights}
-            onChange={e => setShowInsights(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-slate-900 h-3.5 w-3.5"
+            onChange={(e) => setShowInsights(e.target.checked)}
+            className="rounded border-gray-700 bg-gray-800 text-blue-600"
+            id="insights-toggle"
           />
-          <span className="font-medium text-[11px]">Show PM Insights</span>
+          <span>Show PM Insights</span>
         </label>
       </div>
     </div>
   );
 
-  const TopBar = ({ crumbs }: { crumbs: (string | React.ReactNode)[] }) => (
-    <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
-      <div className="flex items-center gap-2 text-xs text-slate-400">
-        {crumbs.map((c, i) => (
-          <React.Fragment key={i}>
-            {i > 0 && <span className="text-slate-300">/</span>}
-            <span className={i === crumbs.length - 1 ? 'text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-700'}>
-              {c}
-            </span>
-          </React.Fragment>
-        ))}
-      </div>
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-100">
-          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div> SYSTEM OPERATIONAL
-        </div>
-        <div className="w-px h-6 bg-slate-200"></div>
-        <button className="text-slate-400 hover:text-slate-600 p-1" title="API Status Summary">
-          <Settings size={16} />
-        </button>
-      </div>
-    </div>
-  );
-
-  const SalesOrderScreen = () => (
-    <div className="flex-1 overflow-y-auto" onClick={() => contextMenu && setContextMenu(null)}>
-      <TopBar crumbs={['Sales Orders', 'SO-88214']} />
-      <div className="p-5 max-w-5xl mx-auto w-full">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-lg font-bold text-slate-950 uppercase tracking-tight">Sales Order — SO-88214</h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Customer: <span className="font-semibold text-slate-700">Whole Foods Market — Store #212</span>
-            </p>
-          </div>
-          <div className="text-right flex flex-col items-end">
-            <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold border border-slate-200">
-              Draft / Simulated System
-            </span>
-            <div className="text-[10px] text-slate-400 mt-1">Jul 23, 2026</div>
-          </div>
-        </div>
-
-        <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-indigo-950 mb-4 flex items-start gap-2.5 leading-relaxed">
-          <FileSearch size={16} className="text-indigo-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold">Interactive Simulation Guide:</span> Right-click the item with{' '}
-            <span className="font-bold text-rose-700 bg-rose-50 px-1 py-0.5 rounded border border-rose-100">Insufficient Stock</span> (Frozen Fries) to initiate a real-time
-            supplier inventory check and fulfill the shortage dynamically.
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
-                <th className="py-2 px-4 font-bold">Item ID</th>
-                <th className="py-2 px-4 font-bold">Description</th>
-                <th className="py-2 px-4 font-bold">Qty Ordered</th>
-                <th className="py-2 px-4 font-bold">Available Qty</th>
-                <th className="py-2 px-4 font-bold">Unit Price</th>
-                <th className="py-2 px-4 font-bold">Line Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {salesOrderLines.map(line => (
-                <tr
-                  key={line.id}
-                  onContextMenu={e => openContextMenu(e, line.id)}
-                  className={`text-xs text-slate-600 hover:bg-slate-50/50 transition-colors select-none ${
-                    line.status === 'shortage' ? 'bg-rose-50/20' : line.status === 'ordered' ? 'bg-emerald-50/20' : ''
-                  }`}
-                >
-                  <td className="py-2.5 px-4 font-mono text-slate-900 font-bold">{line.itemId}</td>
-                  <td className="py-2.5 px-4 font-medium text-slate-900">{line.description}</td>
-                  <td className="py-2.5 px-4 font-bold text-slate-800">{line.qty}</td>
-                  <td className="py-2.5 px-4">
-                    <span className={line.available < line.qty ? 'text-rose-600 font-bold' : 'text-slate-700 font-medium'}>
-                      {line.available}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4 text-slate-700 font-medium">${line.price.toFixed(2)}</td>
-                  <td className="py-2.5 px-4">
-                    {line.status === 'shortage' && (
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-700 flex items-center gap-1 w-fit border border-rose-200">
-                        <AlertTriangle size={11} /> Insufficient Stock
-                      </span>
-                    )}
-                    {line.status === 'ok' && (
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 w-fit border border-slate-200">
-                        In Stock
-                      </span>
-                    )}
-                    {line.status === 'ordered' && (
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 flex items-center gap-1 w-fit border border-emerald-200 shadow-sm">
-                        <Truck size={11} /> PO Created ({line.poNumber})
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <PMInsight>
-          The shortage on Frozen Fries (0 available, 25 ordered) is exactly the moment a rep would previously put the
-          customer on hold and email three suppliers by hand. The context-menu check queries only the single item the rep
-          right-clicked — not a bulk refresh of the whole order — so the response comes back in under two seconds instead of the
-          rep waiting on a full-catalog resync.
-        </PMInsight>
-      </div>
-
-      <AnimatePresence>
-        {contextMenu && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.08 }}
-            className="fixed bg-white border border-slate-200 rounded-md shadow-md py-1 z-50 w-52"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-            onClick={e => e.stopPropagation()}
+  const TopBar = ({ crumbs }: { crumbs: string[] }) => (
+    <div
+      className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-2 text-sm text-gray-500"
+      id="topbar"
+    >
+      {crumbs.map((c, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <ChevronRight size={14} className="text-gray-400" />}
+          <span
+            id={`crumb-${i}`}
+            className={i === crumbs.length - 1 ? 'text-gray-900 font-medium' : ''}
           >
-            <div className="px-3 py-1 text-[9px] font-bold text-slate-400 tracking-wider uppercase">Item Actions</div>
-            <button disabled className="w-full text-left px-3 py-1.5 text-xs text-slate-300 cursor-not-allowed">
-              View Item Details
-            </button>
-            <button
-              onClick={() => {
-                const line = salesOrderLines.find(l => l.id === contextMenu.lineId);
-                if (line) startSupplierCheck(line);
-              }}
-              className="w-full text-left px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-slate-50 flex items-center gap-2"
-            >
-              <Link2 size={13} /> Check Supplier Integration
-            </button>
-            <div className="h-px bg-slate-100 my-1"></div>
-            <button disabled className="w-full text-left px-3 py-1.5 text-xs text-slate-300 cursor-not-allowed">
-              Delete Line Item
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {supplierModalLine && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 15 }}
-              className="bg-white rounded-lg shadow-xl w-full max-w-xl overflow-hidden border border-slate-200"
-            >
-              <div className="p-4 border-b border-slate-150">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900">Supplier Availability Lookup</h2>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                      Querying live integrated suppliers for{' '}
-                      <span className="font-mono font-bold bg-slate-100 px-1 py-0.5 rounded text-slate-800">
-                        {supplierModalLine.itemId}
-                      </span>
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setSupplierModalLine(null)}
-                    className="text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 p-1 rounded-full transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-md p-2.5 mt-3 flex items-center justify-between text-xs font-medium text-slate-600">
-                  <div>
-                    Required Qty: <span className="font-bold text-slate-900">{supplierModalLine.qty}</span>
-                  </div>
-                  <div>
-                    Item: <span className="font-bold text-slate-800">{supplierModalLine.description}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4">
-                {supplierCheckStatus === 'loading' ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <Loader2 size={24} className="text-indigo-600 animate-spin mb-2" />
-                    <p className="text-xs font-semibold text-slate-800">Querying Supplier APIs...</p>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm">
-                      <table className="w-full text-xs text-left">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                            <th className="py-2 px-3 font-bold">Supplier</th>
-                            <th className="py-2 px-3 font-bold">Price</th>
-                            <th className="py-2 px-3 font-bold">Stock</th>
-                            <th className="py-2 px-3 font-bold">Lead Time</th>
-                            <th className="py-2 px-3 font-bold w-16">Qty</th>
-                            <th className="py-2 px-3"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {supplierResults.map((r, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/50">
-                              <td className="py-2 px-3 font-bold text-slate-900">{r.supplier}</td>
-                              <td className="py-2 px-3 font-medium text-slate-800">${r.price.toFixed(2)}</td>
-                              <td className="py-2 px-3 font-semibold text-slate-700">
-                                <span className={r.qty === 0 ? 'text-rose-600' : 'text-emerald-700'}>
-                                  {r.qty === 0 ? 'Out of Stock' : `${r.qty} units`}
-                                </span>
-                              </td>
-                              <td className="py-2 px-3 text-slate-500">{r.lead}</td>
-                              <td className="py-2 px-3">
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={r.qtyToOrder}
-                                  onChange={e => handleQtyToOrderChange(idx, e.target.value)}
-                                  disabled={r.qty === 0}
-                                  className="w-14 border border-slate-300 rounded px-1.5 py-0.5 text-xs text-center font-bold disabled:bg-slate-100 disabled:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                              </td>
-                              <td className="py-2 px-3 text-right">
-                                <button
-                                  disabled={r.qty === 0}
-                                  onClick={() => beginPlaceOrder(r)}
-                                  className={`text-[10px] font-bold px-2 py-1 rounded transition-all ${
-                                    r.qty === 0
-                                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                      : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.98]'
-                                  }`}
-                                >
-                                  Fulfill Shortage
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <PMInsight>
-                      Only suppliers with an active integration respond here — Pacific Seafood Direct shows Not Connected
-                      for lead time because its connection was never activated, which is a live nudge back to the Suppliers
-                      screen rather than a dead end for the rep.
-                    </PMInsight>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {poDraft && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden border border-slate-200"
-            >
-              <div className="p-4 border-b border-slate-150 flex items-center justify-between">
-                <h2 className="font-bold text-slate-900 text-sm">
-                  {poConfirmed ? 'PO Sent Successfully' : 'Draft Supplier Purchase Order'}
-                </h2>
-                <button
-                  onClick={() => setPoDraft(null)}
-                  className="text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 p-1 rounded-full"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="p-4">
-                {!poConfirmed ? (
-                  <div className="space-y-3.5 text-xs text-slate-600">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 tracking-wider block mb-1">
-                        PO NUMBER (EDITABLE)
-                      </label>
-                      <input
-                        value={poDraft.poNumber}
-                        onChange={e => setPoDraft({ ...poDraft, poNumber: e.target.value })}
-                        className="w-full border border-slate-300 rounded px-2.5 py-1 font-mono text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded border border-slate-200 text-xs">
-                      <div>
-                        <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Supplier</span>
-                        <span className="font-bold text-slate-800">{poDraft.supplier}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Item ID</span>
-                        <span className="font-mono font-bold text-slate-800">{poDraft.itemId}</span>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Description</span>
-                        <span className="font-medium text-slate-700">{poDraft.description}</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 tracking-wider block mb-1">
-                        ORDER QUANTITY (EDITABLE)
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={poDraft.qty}
-                        onChange={e => setPoDraft({ ...poDraft, qty: parseInt(e.target.value) || 0 })}
-                        className="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-slate-100 pt-2.5 font-medium">
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">Unit Price</span>
-                        <span className="font-bold text-slate-800">${poDraft.price.toFixed(2)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">Total Cost</span>
-                        <span className="font-bold text-indigo-600">${(poDraft.price * poDraft.qty).toFixed(2)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">Warehouse</span>
-                        <span className="font-semibold text-slate-700">{poDraft.warehouse}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">Lead Time</span>
-                        <span className="font-semibold text-slate-700">{poDraft.lead}</span>
-                      </div>
-                    </div>
-
-                    <PMInsight>
-                      Only PO Number and Qty are editable here on purpose — price, supplier, and warehouse come straight
-                      from the live API response. Letting a rep override pricing or warehouse mid-flow is how orders end up
-                      mismatched with what the supplier actually confirms.
-                    </PMInsight>
-
-                    <button
-                      onClick={confirmPO}
-                      className="w-full flex items-center justify-center gap-1.5 mt-3 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition-all shadow-sm"
-                    >
-                      <CheckCircle2 size={14} /> Confirm &amp; Dispatch PO
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3.5">
-                    <div className="bg-emerald-50 border border-emerald-200 rounded p-3 text-xs text-emerald-800 leading-relaxed">
-                      <div className="font-bold text-emerald-900 flex items-center gap-1.5 mb-1">
-                        <CheckCircle2 size={15} /> PO Dispatched
-                      </div>
-                      <p>
-                        <span className="font-bold">{poDraft.poNumber}</span> has been transmitted to{' '}
-                        <span className="font-bold">{poDraft.supplier}</span>. Status: pending automated supplier hook.
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setPoDraft(null);
-                        setSupplierModalLine(null);
-                      }}
-                      className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-bold transition-colors"
-                    >
-                      Return to Sales Order
-                    </button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            {c}
+          </span>
+        </React.Fragment>
+      ))}
     </div>
   );
 
   const SuppliersScreen = () => (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto bg-gray-50" id="suppliers-screen">
       <TopBar crumbs={['Suppliers']} />
-      <div className="p-5 max-w-5xl mx-auto w-full">
+      <div className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-lg font-bold text-slate-950 uppercase tracking-tight">Connected Suppliers</h1>
-            <p className="text-xs text-slate-500 mt-1">Configure and manage active inventory and ordering API links</p>
-          </div>
+          <h1 className="text-xl font-bold text-gray-900" id="suppliers-heading">
+            Connected Suppliers
+          </h1>
           <button
+            id="add-supplier-btn"
             onClick={() => {
               setCurrentView('new-connection');
               setWizardStep(1);
               setTestStatus(null);
-              setDiscoveryProgress(0);
-              setDiscoveryDone(false);
             }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold shadow-sm active:scale-[0.98] transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 cursor-pointer shadow-xs"
           >
-            <Plus size={14} /> Add Connection
+            <Plus size={16} /> Add New Supplier
           </button>
         </div>
 
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="py-2.5 px-4 font-bold">Supplier Name</th>
-                <th className="py-2.5 px-4 font-bold">Health Status</th>
-                <th className="py-2.5 px-4 font-bold">Auth Protocol</th>
-                <th className="py-2.5 px-4 font-bold">Last Synced</th>
-                <th className="py-2.5 px-4 font-bold">Mapped SKU count</th>
-                <th className="py-2.5 px-4 text-right">Actions</th>
+        <div
+          className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs"
+          id="suppliers-table-container"
+        >
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Supplier</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Status</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Auth Type</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Last Synced</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Products Mapped</th>
+                <th className="text-right py-2.5 px-4 font-semibold text-gray-600">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {suppliersList.map(s => (
-                <tr key={s.id} className="hover:bg-slate-50/50">
-                  <td className="py-2.5 px-4 font-bold text-slate-950">{s.name}</td>
-                  <td className="py-2.5 px-4">
+            <tbody>
+              {suppliers.map((s) => (
+                <tr
+                  key={s.id}
+                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50"
+                  id={`supplier-row-${s.id}`}
+                >
+                  <td className="py-3 px-4 font-medium text-gray-900">{s.name}</td>
+                  <td className="py-3 px-4">
                     <StatusBadge status={s.status} />
-                    {s.error && <div className="text-[10px] text-rose-600 mt-1 font-semibold">{s.error}</div>}
+                    {s.error && <div className="text-xs text-red-600 mt-1">{s.error}</div>}
                   </td>
-                  <td className="py-2.5 px-4 text-slate-600 font-medium">{s.auth}</td>
-                  <td className="py-2.5 px-4 text-slate-500 font-semibold">{s.lastSync}</td>
-                  <td className="py-2.5 px-4 text-slate-800 font-bold">{s.products.toLocaleString()}</td>
-                  <td className="py-2.5 px-4 text-right space-x-2.5">
+                  <td className="py-3 px-4 text-gray-600">{s.auth}</td>
+                  <td className="py-3 px-4 text-gray-600">{s.lastSync}</td>
+                  <td className="py-3 px-4 text-gray-600">{s.products.toLocaleString()}</td>
+                  <td className="py-3 px-4 text-right space-x-3">
                     <button
-                      onClick={() => {
-                        alert(`Connection test triggered for ${s.name}... Status: OK`);
-                      }}
-                      className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold hover:underline"
+                      className="text-blue-600 hover:underline text-xs font-medium cursor-pointer"
+                      id={`action-test-${s.id}`}
                     >
-                      Test Link
+                      Test Connection
                     </button>
                     <button
+                      id={`action-map-${s.id}`}
                       onClick={() => {
                         setCurrentView('new-connection');
                         setWizardStep(3);
-                        setNewSupplierName(s.name);
-                        setAuthType(s.auth === 'OAuth 2.0' ? 'OAuth 2.0' : s.auth === 'API Key' ? 'API Key' : 'Basic Auth');
                       }}
-                      className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold hover:underline"
+                      className="text-blue-600 hover:underline text-xs font-medium cursor-pointer"
                     >
-                      Edit Map
+                      Edit Mapping
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Are you sure you want to disconnect ${s.name}?`)) {
-                          setSuppliersList(prev => prev.filter(item => item.id !== s.id));
-                        }
-                      }}
-                      className="text-rose-600 hover:text-rose-800 text-[10px] font-bold hover:underline"
+                      className="text-red-600 hover:underline text-xs font-medium cursor-pointer"
+                      id={`action-disconnect-${s.id}`}
                     >
                       Disconnect
                     </button>
@@ -691,42 +419,35 @@ export default function App() {
 
         <PMInsight>
           Surfacing connection health (not just "connected/disconnected") on the main list was a deliberate call — supplier
-          API outages are common, and buyers need to see a stale/broken connection before they try to place an order against
-          it, not after it fails silently.
+          API outages are common, and buyers need to see a stale/broken connection before they try to place an order against it,
+          not after it fails silently.
         </PMInsight>
       </div>
     </div>
   );
 
   const WizardSteps = () => (
-    <div className="flex items-center justify-between max-w-lg mx-auto mb-6 bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm select-none">
-      {['Credentials', 'Discovery', 'Field Mapping', 'Verification'].map((label, idx) => {
+    <div className="flex items-center gap-2 mb-6" id="wizard-steps-container">
+      {['Connect', 'Discover', 'Map Fields', 'Review'].map((label, idx) => {
         const step = idx + 1;
         const active = wizardStep === step;
         const done = wizardStep > step;
         return (
           <React.Fragment key={label}>
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className={`flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold transition-all ${
-                  active
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : done
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-slate-100 text-slate-400'
-                }`}
-              >
-                {done ? <CheckCircle2 size={12} /> : <span>{step}</span>}
-              </div>
-              <span
-                className={`text-[9px] font-bold tracking-tight uppercase transition-colors ${
-                  active ? 'text-indigo-600' : done ? 'text-emerald-600' : 'text-slate-400'
-                }`}
-              >
-                {label}
-              </span>
+            <div
+              id={`step-badge-${step}`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+                active
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : done
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {done ? <CheckCircle2 size={14} /> : <span>{step}</span>}
+              {label}
             </div>
-            {idx < 3 && <div className="flex-1 h-0.5 bg-slate-200 mx-3" />}
+            {idx < 3 && <div className="w-6 h-px bg-gray-300" />}
           </React.Fragment>
         );
       })}
@@ -734,36 +455,33 @@ export default function App() {
   );
 
   const ConnectStep = () => (
-    <div className="max-w-xl mx-auto w-full">
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 space-y-4">
-        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">Supplier API Endpoint Settings</h3>
-        <div className="grid grid-cols-2 gap-3.5">
-          <div className="col-span-2 sm:col-span-1">
-            <label className="text-[10px] font-bold text-slate-500 block mb-1">SUPPLIER LEGAL NAME</label>
-            <input
-              className="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="e.g. Pacific Seafood Direct"
-              value={newSupplierName}
-              onChange={e => setNewSupplierName(e.target.value)}
-            />
-          </div>
-          <div className="col-span-2 sm:col-span-1">
-            <label className="text-[10px] font-bold text-slate-500 block mb-1">API BASE ENDPOINT URL</label>
-            <input
-              className="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="https://api.supplier.com/v2"
-              value={newSupplierUrl}
-              onChange={e => setNewSupplierUrl(e.target.value)}
-            />
-          </div>
-        </div>
-
+    <div className="max-w-2xl" id="connect-step-container">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4 shadow-xs">
         <div>
-          <label className="text-[10px] font-bold text-slate-500 block mb-1">AUTH PROTOCOL METHOD</label>
+          <label className="text-sm font-medium text-gray-700 block mb-1">Supplier Name</label>
+          <input
+            id="input-supplier-name"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g. Pacific Seafood Direct"
+            defaultValue="Pacific Seafood Direct"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-700 block mb-1">API Base URL</label>
+          <input
+            id="input-api-url"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="https://api.supplier.com/v2"
+            defaultValue="https://api.pacificseafood.com/v2"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-700 block mb-1">Auth Type</label>
           <select
+            id="select-auth-type"
             value={authType}
-            onChange={e => setAuthType(e.target.value)}
-            className="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            onChange={(e) => setAuthType(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             <option>API Key</option>
             <option>OAuth 2.0</option>
@@ -774,105 +492,130 @@ export default function App() {
 
         {authType === 'API Key' && (
           <div>
-            <label className="text-[10px] font-bold text-slate-500 block mb-1">API KEY (X-API-KEY HEADER VALUE)</label>
+            <label className="text-sm font-medium text-gray-700 block mb-1">API Key</label>
             <input
+              id="input-api-key"
               type="password"
-              className="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="••••••••••••••••••••••••••••••••"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="••••••••••••"
             />
           </div>
         )}
         {authType === 'OAuth 2.0' && (
-          <div className="grid grid-cols-2 gap-3.5 bg-slate-50 p-3 rounded border border-slate-200">
-            <div className="col-span-2 sm:col-span-1">
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">CLIENT ID</label>
-              <input className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+          <div className="grid grid-cols-2 gap-3 animate-fade-in" id="oauth-fields">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Client ID</label>
+              <input
+                id="input-oauth-client-id"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
-            <div className="col-span-2 sm:col-span-1">
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">CLIENT SECRET</label>
-              <input type="password" className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Client Secret</label>
+              <input
+                id="input-oauth-client-secret"
+                type="password"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             <div className="col-span-2">
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">TOKEN ISSUER ENDPOINT</label>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Token URL</label>
               <input
-                className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                placeholder="https://auth.supplier.com/oauth/token"
+                id="input-oauth-token-url"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
         )}
         {authType === 'Basic Auth' && (
-          <div className="grid grid-cols-2 gap-3.5 bg-slate-50 p-3 rounded border border-slate-200">
+          <div className="grid grid-cols-2 gap-3 animate-fade-in" id="basic-auth-fields">
             <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">USERNAME</label>
-              <input className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              <label className="text-sm font-medium text-gray-700 block mb-1">Username</label>
+              <input
+                id="input-basic-username"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">PASSWORD</label>
-              <input type="password" className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              <label className="text-sm font-medium text-gray-700 block mb-1">Password</label>
+              <input
+                id="input-basic-password"
+                type="password"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
         )}
 
-        <div className="pt-2 border-t border-slate-100">
-          <label className="text-[10px] font-bold text-slate-500 block mb-2">TARGET INTEGRATION ENVIRONMENT</label>
-          <div className="flex gap-2">
-            <button className="px-3 py-1 bg-indigo-600 text-white text-[10px] font-bold rounded shadow-sm">
-              Sandbox (Isolated Testing)
+        <div>
+          <label className="text-sm font-medium text-gray-700 block mb-2">Environment</label>
+          <div className="flex gap-2" id="env-buttons">
+            <button
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white cursor-pointer shadow-xs"
+              id="btn-env-sandbox"
+            >
+              Sandbox
             </button>
-            <button className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded transition-colors">
-              Production Real-time
+            <button
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer"
+              id="btn-env-production"
+            >
+              Production
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 mt-2 font-medium leading-normal">
-            * We strongly advise completing schema validation and dry-run tests in a Sandbox container before linking the live Supplier ERP core.
-          </p>
+          <div className="text-xs text-gray-500 mt-1">
+            We recommend testing in Sandbox before connecting Production.
+          </div>
         </div>
 
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
-          <label className="flex items-center gap-1.5 text-[10px] text-rose-700 font-bold cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={simulateFailure}
-              onChange={e => setSimulateFailure(e.target.checked)}
-              className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 h-3.5 w-3.5"
-            />
-            <span>Simulate handshake failure</span>
-          </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer pt-2 border-t border-gray-100">
+          <input
+            type="checkbox"
+            checked={simulateFailure}
+            onChange={(e) => setSimulateFailure(e.target.checked)}
+            className="rounded text-blue-600 focus:ring-blue-500"
+            id="simulate-failure-checkbox"
+          />
+          Demo: simulate a failed connection
+        </label>
 
-          <button
-            onClick={() => {
-              setTestStatus('loading');
-              setTimeout(() => setTestStatus(simulateFailure ? 'error' : 'success'), 1400);
-            }}
-            className="flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded text-[10px] font-bold transition-all shadow-sm"
-          >
-            {testStatus === 'loading' ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            Test Endpoint
-          </button>
-        </div>
+        <button
+          id="btn-test-connection"
+          onClick={() => {
+            setTestStatus('loading');
+            setTimeout(() => setTestStatus(simulateFailure ? 'error' : 'success'), 1400);
+          }}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors"
+        >
+          {testStatus === 'loading' ? (
+            <Loader2 size={16} className="animate-spin text-blue-600" />
+          ) : (
+            <RefreshCw size={16} />
+          )}
+          Test Connection
+        </button>
 
         {testStatus === 'success' && (
-          <div className="bg-emerald-50 border border-emerald-100 rounded p-3 flex items-start gap-2.5">
-            <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold text-emerald-900 text-xs">Connection Handshake Succeeded</div>
-              <div className="text-[10px] text-emerald-700 mt-0.5 leading-normal">
-                Discovered schema endpoints: <span className="font-mono bg-emerald-100/50 px-1 py-0.5 rounded font-bold">/v2/products</span>,{' '}
-                <span className="font-mono bg-emerald-100/50 px-1 py-0.5 rounded font-bold">/v2/inventory</span>, and{' '}
-                <span className="font-mono bg-emerald-100/50 px-1 py-0.5 rounded font-bold">/v2/orders</span>. Handshake took 320ms.
-              </div>
+          <div
+            className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2 text-sm animate-fade-in"
+            id="test-success-alert"
+          >
+            <CheckCircle2 size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="text-green-800">
+              <div className="font-medium">Connection successful — API responded in 340ms</div>
+              <div className="text-xs mt-0.5">Discovered 3 endpoints: Products, Inventory, Pricing</div>
             </div>
           </div>
         )}
         {testStatus === 'error' && (
-          <div className="bg-rose-50 border border-rose-100 rounded p-3 flex items-start gap-2.5 animate-head-shake">
-            <XCircle size={16} className="text-rose-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold text-rose-900 text-xs">Connection Handshake Failed: 401 Unauthorized</div>
-              <div className="text-[10px] text-rose-700 mt-0.5 leading-normal">
-                The supplier API key is expired or rejected by the gateway. Verify header tokens and client parameters with the supplier administrator.
-              </div>
+          <div
+            className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-sm animate-fade-in"
+            id="test-error-alert"
+          >
+            <XCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="text-red-800">
+              <div className="font-medium">Connection failed: 401 Unauthorized</div>
+              <div className="text-xs mt-0.5">Check credentials and try again.</div>
             </div>
           </div>
         )}
@@ -880,34 +623,34 @@ export default function App() {
 
       <PMInsight>
         Sandbox is the default environment, not Production — a small default that prevents a rushed integration from
-        accidentally hitting a supplier's live order system during initial setup. Auth type is a dropdown, not a fixed field,
-        because supplier auth standards vary widely and forcing one method blocks onboarding for non-conforming suppliers.
+        accidentally hitting a supplier's live order system during initial setup.
       </PMInsight>
 
       <div className="flex justify-end mt-4">
         <button
+          id="btn-next-discover"
           disabled={testStatus !== 'success'}
           onClick={() => {
             setWizardStep(2);
             setDiscoveryProgress(0);
             setDiscoveryDone(false);
           }}
-          className={`flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-bold shadow transition-all ${
+          className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
             testStatus === 'success'
-              ? 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.98]'
-              : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
+              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-xs'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
         >
-          Next: Schema Discovery <ArrowRight size={13} />
+          Next: Discover Fields <ArrowRight size={16} />
         </button>
       </div>
     </div>
   );
 
   const DiscoverStep = () => {
-    useEffect(() => {
+    React.useEffect(() => {
       if (discoveryProgress < 100) {
-        const t = setTimeout(() => setDiscoveryProgress(p => Math.min(p + 20, 100)), 250);
+        const t = setTimeout(() => setDiscoveryProgress((p) => Math.min(p + 20, 100)), 300);
         return () => clearTimeout(t);
       } else {
         setDiscoveryDone(true);
@@ -915,151 +658,122 @@ export default function App() {
     }, [discoveryProgress]);
 
     return (
-      <div className="max-w-xl mx-auto w-full">
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
-          <h3 className="text-xs font-bold text-slate-900 border-b border-slate-100 pb-2 mb-3.5 uppercase tracking-wider">API Mapping Scanner</h3>
-          <div className="text-xs font-semibold text-slate-700 mb-2">Analyzing endpoint JSON properties...</div>
-          <div className="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
+      <div className="max-w-2xl" id="discover-step-container">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-xs">
+          <div className="text-sm font-medium text-gray-700 mb-2">Scanning supplier API schema...</div>
+          <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
             <div
-              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
               style={{ width: `${discoveryProgress}%` }}
             />
           </div>
-          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-            <span>Progress: {discoveryProgress}%</span>
-            <span>{discoveryProgress === 100 ? 'Analysis Complete' : 'Reading fields...'}</span>
-          </div>
+          <div className="text-xs text-gray-500">{discoveryProgress}% complete</div>
 
           {discoveryDone && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4 border-t border-slate-100 pt-4 space-y-3.5"
-            >
-              <div className="bg-indigo-50 border border-indigo-100 text-indigo-950 p-3 rounded text-xs leading-relaxed">
-                Our AI-assisted mapping analyzer scanned the supplier JSON response payload and resolved matching properties based on vocabulary vectors. We found matches with varying confidence levels.
+            <div className="mt-6 grid grid-cols-3 gap-3 animate-fade-in" id="discover-results-summary">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-green-700">9</div>
+                <div className="text-xs text-green-700 mt-1">High Confidence Matches</div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-emerald-50 border border-emerald-100 rounded p-2">
-                  <div className="text-xl font-bold text-emerald-700">9</div>
-                  <div className="text-[9px] font-bold text-emerald-700 mt-0.5 uppercase tracking-wide">High Conf</div>
-                </div>
-                <div className="bg-amber-50 border border-amber-100 rounded p-2">
-                  <div className="text-xl font-bold text-amber-700">1</div>
-                  <div className="text-[9px] font-bold text-amber-700 mt-0.5 uppercase tracking-wide">Pending</div>
-                </div>
-                <div className="bg-rose-50 border border-rose-100 rounded p-2">
-                  <div className="text-xl font-bold text-rose-600">0</div>
-                  <div className="text-[9px] font-bold text-rose-600 mt-0.5 uppercase tracking-wide">Conflict</div>
-                </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-yellow-700">3</div>
+                <div className="text-xs text-yellow-700 mt-1">Needs Review</div>
               </div>
-            </motion.div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-red-700">2</div>
+                <div className="text-xs text-red-700 mt-1">Unmapped</div>
+              </div>
+            </div>
           )}
         </div>
 
         <PMInsight>
-          Auto-mapping does the first pass, but I never treated confidence scores below ~85% as "done" — this discovery summary
-          exists so the buyer's ops team reviews the yellow/red items before activating, rather than discovering a bad mapping only
-          after a wrong PO goes out.
+          Auto-mapping does the first pass, but I never treated confidence scores below ~85% as "done" — this discovery
+          summary exists so the buyer's ops team reviews the yellow/red items before activating, rather than discovering
+          a bad mapping only after a wrong PO goes out.
         </PMInsight>
 
         <div className="flex justify-between mt-4">
           <button
+            id="btn-back-connect"
             onClick={() => setWizardStep(1)}
-            className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
           >
-            <ChevronLeft size={14} /> Back
+            <ChevronLeft size={16} /> Back
           </button>
           <button
+            id="btn-next-mapping"
             disabled={!discoveryDone}
             onClick={() => setWizardStep(3)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-bold shadow transition-all ${
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
               discoveryDone
-                ? 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.98]'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
+                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-xs'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
           >
-            Next: Field Mapping <ArrowRight size={13} />
+            Next: Map Fields <ArrowRight size={16} />
           </button>
         </div>
       </div>
     );
   };
 
-  const handleFieldMappingChange = (fieldIndex: number, newErpField: string) => {
-    setMappedFields(prev =>
-      prev.map((f, idx) => {
-        if (idx === fieldIndex) {
-          // Adjust confidence when the user overrides manually
-          return { ...f, erpField: newErpField, confidence: newErpField === '— Unmapped —' ? 0 : 100 };
-        }
-        return f;
-      })
-    );
-  };
-
   const MappingStep = () => (
-    <div className="max-w-4xl mx-auto w-full">
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
-        <div className="p-4 border-b border-slate-150">
-          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Configure Supplier Key Value Bindings</h3>
-          <p className="text-[10px] text-slate-500 mt-0.5">
-            Confirm or alter how incoming JSON attributes map to Surya ERP's master entity variables
-          </p>
-        </div>
-        <table className="w-full text-xs text-left">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-              <th className="py-2 px-4 font-bold">Supplier Field Name</th>
-              <th className="py-2 px-4 font-bold">JSON Value Sample</th>
-              <th className="py-2 px-4 font-bold">ERP Target Attribute</th>
-              <th className="py-2 px-4 font-bold">Confidence Score</th>
+    <div className="max-w-4xl" id="mapping-step-container">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Supplier API Field</th>
+              <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Sample Value</th>
+              <th className="text-left py-2.5 px-4 font-semibold text-gray-600">ERP Field</th>
+              <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Confidence</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
-            {mappedFields.map((f, idx) => (
-              <tr key={idx} className="hover:bg-slate-50/40">
-                <td className="py-2 px-4 font-mono text-[11px] text-slate-800 font-bold">{f.field}</td>
-                <td className="py-2 px-4 text-slate-500 font-mono text-[10px]">{f.sample}</td>
-                <td className="py-1 px-4">
+          <tbody>
+            {supplierFields.map((f, idx) => (
+              <tr key={idx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/30">
+                <td className="py-2.5 px-4 font-mono text-xs text-gray-800">{f.field}</td>
+                <td className="py-2.5 px-4 text-gray-500 text-xs">{f.sample}</td>
+                <td className="py-2.5 px-4">
                   <select
-                    value={f.erpField}
-                    onChange={e => handleFieldMappingChange(idx, e.target.value)}
-                    className="border border-slate-300 rounded px-2 py-0.5 text-xs w-full max-w-[200px] font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    id={`select-field-map-${idx}`}
+                    defaultValue={f.erpField}
+                    className="border border-gray-300 rounded-md px-2 py-1 text-xs w-full max-w-[220px] focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                   >
-                    <optgroup label="Item Identifiers">
+                    <optgroup label="Item Master">
                       <option>Item Code</option>
                       <option>Item Description</option>
                       <option>UPC / GTIN</option>
                       <option>Manufacturer Part Number</option>
                     </optgroup>
-                    <optgroup label="Pricing Core">
+                    <optgroup label="Pricing">
                       <option>Unit Price</option>
                       <option>Currency</option>
                       <option>UOM (needs conversion)</option>
                       <option>Price Break Quantity</option>
                     </optgroup>
-                    <optgroup label="Live Inventory">
+                    <optgroup label="Inventory">
                       <option>Available Qty</option>
                       <option>Warehouse / Location Code</option>
                       <option>Lead Time Days</option>
                     </optgroup>
-                    <optgroup label="Meta-Data">
+                    <optgroup label="Supplier Info">
                       <option>Supplier SKU</option>
                       <option>Supplier Name</option>
                     </optgroup>
                     <option>— Unmapped —</option>
                   </select>
                 </td>
-                <td className="py-1 px-4">
+                <td className="py-2.5 px-4">
                   {f.confidence === 0 ? (
-                    <span className="text-slate-400 font-bold">—</span>
+                    <span className="text-xs text-gray-400">—</span>
                   ) : (
                     <span
-                      className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                         f.confidence >= 85
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-yellow-100 text-yellow-700'
                       }`}
                     >
                       {f.confidence}%
@@ -1074,133 +788,115 @@ export default function App() {
 
       <PMInsight>
         The UPC/GTIN row maps at 97% because it's the primary key we match on — but note "Manufacturer Part Number" and
-        "Supplier SKU" are also mapped, not left blank. If a future product from this supplier arrives without a UPC, the matching
-        engine falls back to Mfr Part Number → Supplier SKU, rather than failing to match entirely. The "pack_uom" row maps at only
-        60% because it needs a unit conversion (Case of 12 → Each) — I never let the system silently assume a 1:1 conversion; the
-        buyer must confirm the conversion factor explicitly.
+        "Supplier SKU" are also mapped, not left blank as fallback options.
       </PMInsight>
 
       <div className="flex justify-between mt-4">
         <button
+          id="btn-back-discover"
           onClick={() => setWizardStep(2)}
-          className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
         >
-          <ChevronLeft size={14} /> Back
+          <ChevronLeft size={16} /> Back
         </button>
         <button
+          id="btn-next-review"
           onClick={() => setWizardStep(4)}
-          className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition-all"
+          className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 cursor-pointer shadow-xs transition-colors"
         >
-          Save Mapping &amp; Verify <ArrowRight size={13} />
+          Save Mapping & Continue <ArrowRight size={16} />
         </button>
       </div>
     </div>
   );
 
-  const ReviewStep = () => {
-    const handleActivateConnection = () => {
-      const activeSupplier: Supplier = {
-        id: suppliersList.length + 1,
-        name: newSupplierName,
-        status: 'Connected',
-        auth: authType,
-        lastSync: 'Just now',
-        products: 48
-      };
-      setSuppliersList(prev => [...prev, activeSupplier]);
-      setCurrentView('suppliers');
-    };
-
-    return (
-      <div className="max-w-xl mx-auto w-full">
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 space-y-4">
-          <h3 className="text-xs font-bold text-slate-900 border-b border-slate-100 pb-2 uppercase tracking-wider">Compliance &amp; Synchronization</h3>
-
-          <div>
-            <div className="text-xs font-bold text-slate-900 mb-1">Mapping Integrity Completed</div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              9 automatic field bindings confirmed. 1 field manually overridden (UOM conversion multiplier set to 12 each).
-            </p>
-          </div>
-
-          <div className="border-t border-slate-100 pt-3 space-y-2">
-            <div>
-              <label className="flex items-center justify-between cursor-pointer select-none">
-                <span className="text-xs font-semibold text-slate-700">Scheduled sync frequency</span>
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
-                />
-              </label>
-              <p className="text-[10px] text-slate-400 mt-0.5">Automate background inventory check intervals</p>
-            </div>
-            <select className="w-full border border-slate-300 rounded px-2.5 py-1 text-xs font-bold bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
-              <option>Real-time (Webhook Triggered)</option>
-              <option>Every 15 minutes</option>
-              <option>Hourly Recurrence</option>
-              <option>Daily Bulk Dump</option>
-            </select>
-          </div>
-
-          <div className="border-t border-slate-100 pt-3 space-y-2">
-            <div>
-              <label className="flex items-center justify-between cursor-pointer select-none">
-                <span className="text-xs font-semibold text-slate-700">Require supervisor approval</span>
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
-                />
-              </label>
-              <p className="text-[10px] text-slate-400 mt-0.5">Route high-cost purchase orders through manager approval</p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-400 text-xs font-bold">$</span>
-              <input
-                defaultValue="5000"
-                className="border border-slate-300 rounded px-2 py-0.5 text-xs font-bold w-24 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
+  const ReviewStep = () => (
+    <div className="max-w-2xl" id="review-step-container">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-5 shadow-xs">
+        <div>
+          <div className="text-sm font-semibold text-gray-900 mb-2">Mapping Summary</div>
+          <div className="text-xs text-gray-600">
+            10 fields mapped — 9 automatic, 1 manually adjusted (pack_uom conversion factor: 12)
           </div>
         </div>
 
-        <PMInsight>
-          The approval threshold isn't a "nice to have" — it's a compliance control I added after a pilot customer's buyer
-          accidentally submitted a 10x-quantity order from a fat-fingered mapping test. Anything above a configurable $ threshold
-          routes to a manager for sign-off before it reaches the supplier.
-        </PMInsight>
+        <div className="border-t border-gray-100 pt-4">
+          <label className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">Enable scheduled sync</span>
+            <input type="checkbox" defaultChecked className="rounded text-blue-600 focus:ring-blue-500" id="sync-checkbox" />
+          </label>
+          <select
+            id="select-sync-frequency"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option>Real-time (webhook)</option>
+            <option>Every 15 minutes</option>
+            <option>Hourly</option>
+            <option>Daily</option>
+          </select>
+        </div>
 
-        <div className="flex justify-between mt-4">
-          <button
-            onClick={() => setWizardStep(3)}
-            className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
-          >
-            <ChevronLeft size={14} /> Back
-          </button>
-          <button
-            onClick={handleActivateConnection}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold active:scale-[0.98]"
-          >
-            <CheckCircle2 size={13} /> Activate Connection
-          </button>
+        <div className="border-t border-gray-100 pt-4">
+          <label className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">Require approval for orders above</span>
+            <input
+              type="checkbox"
+              defaultChecked
+              className="rounded text-blue-600 focus:ring-blue-500"
+              id="approval-checkbox"
+            />
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 text-sm">$</span>
+            <input
+              id="input-approval-threshold"
+              defaultValue="5,000"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
       </div>
-    );
-  };
+
+      <PMInsight>
+        The approval threshold isn't a "nice to have" — it's a compliance control I added after a pilot customer's
+        buyer accidentally submitted a 10x-quantity order from a fat-fingered mapping test. Anything above $5,000 routes
+        to a manager for sign-off.
+      </PMInsight>
+
+      <div className="flex justify-between mt-4">
+        <button
+          id="btn-back-mapping"
+          onClick={() => setWizardStep(3)}
+          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
+        >
+          <ChevronLeft size={16} /> Back
+        </button>
+        <button
+          id="btn-activate-connection"
+          onClick={() => {
+            setCurrentView('suppliers');
+          }}
+          className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 cursor-pointer shadow-xs transition-colors"
+        >
+          <CheckCircle2 size={16} /> Activate Supplier Connection
+        </button>
+      </div>
+    </div>
+  );
 
   const NewConnectionScreen = () => (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto bg-gray-50" id="new-connection-screen">
       <TopBar
         crumbs={[
           'Suppliers',
-          newSupplierName,
-          ['Credentials Setup', 'Auto-Discovery', 'Property Mapping', 'Verify & Deploy'][wizardStep - 1]
+          'Pacific Seafood Direct',
+          ['Connect', 'Discover', 'Map Fields', 'Review'][wizardStep - 1]
         ]}
       />
-      <div className="p-5 max-w-4xl mx-auto w-full">
-        <h1 className="text-lg font-bold text-slate-950 uppercase tracking-tight mb-1">Supplier Integration Onboarding</h1>
-        <p className="text-xs text-slate-500 mb-5">Link new supply chains into Surya ERP master system</p>
+      <div className="p-6">
+        <h1 className="text-xl font-bold text-gray-900 mb-4" id="new-connection-heading">
+          New Supplier Connection
+        </h1>
         <WizardSteps />
         {wizardStep === 1 && <ConnectStep />}
         {wizardStep === 2 && <DiscoverStep />}
@@ -1210,328 +906,565 @@ export default function App() {
     </div>
   );
 
-  const CatalogScreen = () => {
-    // Filter and search catalog list
-    const filteredCatalog = catalogList.filter(p => {
-      const matchesSearch =
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.upc.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesSupplier =
-        catalogFilter === 'All' ||
-        (catalogFilter === 'Sysco Foods' && p.sku.startsWith('SF-')) ||
-        (catalogFilter === 'Pacific Seafood Direct' && p.sku.startsWith('PS-'));
-      return matchesSearch && matchesSupplier;
-    });
-
-    const handleSelectProduct = (index: number) => {
-      setSelectedProducts(prev => (prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]));
-    };
-
-    const handleLaunchOrder = () => {
-      setOrderSubmitted(false);
-      setCurrentView('orders');
-    };
-
-    return (
-      <div className="flex-1 overflow-y-auto">
-        <TopBar crumbs={['Integrated Product Catalog']} />
-        <div className="p-5 max-w-5xl mx-auto w-full">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-lg font-bold text-slate-950 uppercase tracking-tight">Supplier Catalog Lookup</h1>
-              <p className="text-xs text-slate-500 mt-1">
-                Unified live view of all products exposed by active supplier integrations
-              </p>
-            </div>
-            {selectedProducts.length > 0 && (
-              <button
-                onClick={handleLaunchOrder}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold shadow-sm active:scale-[0.98] transition-all"
-              >
-                <ShoppingCart size={13} /> Create Order ({selectedProducts.length} items)
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-3 mb-4">
-            <div className="relative flex-1 w-full">
-              <Search size={14} className="absolute left-2.5 top-2 text-slate-400" />
+  const CatalogScreen = () => (
+    <div className="flex-1 overflow-y-auto bg-gray-50" id="catalog-screen">
+      <TopBar crumbs={['Product Catalog']} />
+      <div className="p-6">
+        {/* Search & Supplier Filter Header */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4" id="catalog-controls">
+          <div className="flex flex-1 items-center gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search size={16} className="absolute left-3 top-3 text-gray-400" />
               <input
-                placeholder="Search by product title, supplier SKU, or UPC..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1 border border-slate-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                id="catalog-search"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder="Search by product name, UPC, or SKU (e.g. SF-4471, 041220991823)"
+                className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               />
-            </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <select
-                value={catalogFilter}
-                onChange={e => setCatalogFilter(e.target.value)}
-                className="border border-slate-300 rounded px-2.5 py-1 text-xs font-bold bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 w-full sm:w-40"
-              >
-                <option value="All">All Suppliers</option>
-                <option value="Sysco Foods">Sysco Foods</option>
-                <option value="Pacific Seafood Direct">Pacific Seafood</option>
-              </select>
-              {selectedProducts.length > 0 && (
+              {catalogSearch && (
                 <button
-                  onClick={() => setSelectedProducts([])}
-                  className="px-2.5 py-1 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-xs font-bold transition-colors w-full sm:w-auto"
+                  onClick={() => setCatalogSearch('')}
+                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 text-xs"
                 >
                   Clear
                 </button>
               )}
             </div>
+            <select
+              id="catalog-supplier-filter"
+              value={catalogSupplierFilter}
+              onChange={(e) => setCatalogSupplierFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="All Suppliers">All Suppliers</option>
+              <option value="Sysco Foods">Sysco Foods</option>
+              <option value="Global Produce Co">Global Produce Co</option>
+            </select>
           </div>
+          <div className="text-xs text-gray-500 self-center">
+            Showing <span className="font-semibold text-gray-800">{filteredCatalogProducts.length}</span> of {catalogProducts.length} items
+          </div>
+        </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-4">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="py-2 px-3 text-center w-10">
+        {/* When SKU or product is NOT found in catalog: Requested Feature */}
+        {noCatalogMatchFound && (
+          <div
+            className="mb-6 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5 shadow-xs"
+            id="off-catalog-order-card"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 text-amber-800 rounded-lg flex-shrink-0">
+                <AlertCircle size={20} />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-amber-900 text-base">
+                    Product is not part of your product catalog
+                  </h3>
+                  <span className="px-2 py-0.5 bg-amber-200/70 text-amber-900 rounded font-mono text-xs font-semibold">
+                    SKU / Query: "{catalogSearch.trim()}"
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 mt-1">
+                  We checked your internal master ERP catalog, and no matching SKU, UPC, or product title was found.
+                  However, you can generate an ad-hoc purchase order directly from one of your integrated suppliers.
+                </p>
+
+                {/* Inline off-catalog order form */}
+                <div className="mt-4 p-4 bg-white/90 rounded-lg border border-amber-200 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Integrated Supplier
+                    </label>
+                    <select
+                      id="off-catalog-supplier-select"
+                      value={offCatalogSupplier}
+                      onChange={(e) => setOffCatalogSupplier(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="Sysco Foods">Sysco Foods (Connected - OAuth 2.0)</option>
+                      <option value="Pacific Seafood Direct">Pacific Seafood Direct (Basic Auth)</option>
+                      <option value="Global Produce Co">Global Produce Co (Connected)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Item Description / Title
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={selectedProducts.length === filteredCatalog.length && filteredCatalog.length > 0}
-                      onChange={() => {
-                        if (selectedProducts.length === filteredCatalog.length) {
-                          setSelectedProducts([]);
-                        } else {
-                          setSelectedProducts(filteredCatalog.map((_, i) => i));
-                        }
-                      }}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                      id="off-catalog-item-name"
+                      value={offCatalogItemName}
+                      onChange={(e) => setOffCatalogItemName(e.target.value)}
+                      placeholder={`Custom ${catalogSearch.trim()}`}
+                      className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
                     />
-                  </th>
-                  <th className="py-2 px-3 font-bold">Product Identity</th>
-                  <th className="py-2 px-3 font-bold">Universal UPC</th>
-                  <th className="py-2 px-3 font-bold">Unit Cost</th>
-                  <th className="py-2 px-3 font-bold">Current Stock</th>
-                  <th className="py-2 px-3 font-bold">Warehouse</th>
-                  <th className="py-2 px-3 font-bold">Lead Days</th>
-                  <th className="py-2 px-3 font-bold">Surya ERP Binding</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredCatalog.map((p, idx) => {
-                  const isSelected = selectedProducts.includes(idx);
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Est. Unit Price ($)
+                    </label>
+                    <input
+                      id="off-catalog-price-input"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={offCatalogPrice}
+                      onChange={(e) => setOffCatalogPrice(parseFloat(e.target.value) || 0)}
+                      className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white font-mono focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Initial Qty
+                    </label>
+                    <input
+                      id="off-catalog-qty-input"
+                      type="number"
+                      min="1"
+                      value={offCatalogQty}
+                      onChange={(e) => setOffCatalogQty(parseInt(e.target.value, 10) || 1)}
+                      className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white font-mono focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="md:col-span-5 flex items-center justify-between pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <span>Destination Warehouse:</span>
+                      <select
+                        id="off-catalog-wh-select"
+                        value={offCatalogWh}
+                        onChange={(e) => setOffCatalogWh(e.target.value)}
+                        className="border border-gray-300 rounded px-2 py-1 text-xs bg-white"
+                      >
+                        <option value="WH-CA-04">WH-CA-04 (West Coast Hub)</option>
+                        <option value="WH-AZ-01">WH-AZ-01 (Southwest Hub)</option>
+                      </select>
+                    </div>
+
+                    <button
+                      id="btn-create-off-catalog-order"
+                      onClick={handleCreateOffCatalogOrder}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-700 cursor-pointer shadow-xs transition-colors"
+                    >
+                      <Sparkles size={14} /> Create Order with {offCatalogSupplier} &rarr;
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Catalog Table */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs" id="catalog-table-container">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="py-2.5 px-4 w-10">
+                  <span className="sr-only">Select</span>
+                </th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Product</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600 font-mono">UPC / SKU</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Supplier</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Price</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Available Qty</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Warehouse</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Lead Time</th>
+                <th className="text-left py-2.5 px-4 font-semibold text-gray-600">ERP Match</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCatalogProducts.length > 0 ? (
+                filteredCatalogProducts.map((p, idx) => {
+                  const originalIndex = catalogProducts.findIndex((cp) => cp.sku === p.sku);
                   return (
                     <tr
-                      key={idx}
-                      className={`hover:bg-slate-50/50 transition-colors cursor-pointer select-none ${
-                        isSelected ? 'bg-indigo-50/10' : ''
-                      }`}
-                      onClick={() => handleSelectProduct(idx)}
+                      key={p.sku}
+                      className="border-b border-gray-100 last:border-0 hover:bg-gray-50/40"
+                      id={`product-row-${idx}`}
                     >
-                      <td className="py-2.5 px-3 text-center" onClick={e => e.stopPropagation()}>
+                      <td className="py-2.5 px-4">
                         <input
+                          id={`product-checkbox-${idx}`}
                           type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleSelectProduct(idx)}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                          checked={selectedProducts.includes(originalIndex)}
+                          onChange={() =>
+                            setSelectedProducts((prev) =>
+                              prev.includes(originalIndex)
+                                ? prev.filter((i) => i !== originalIndex)
+                                : [...prev, originalIndex]
+                            )
+                          }
+                          className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                       </td>
-                      <td className="py-2.5 px-3 font-bold text-slate-950">
-                        <div>{p.name}</div>
-                        {p.priceBreak && <div className="text-[10px] text-indigo-600 mt-0.5 font-bold">{p.priceBreak}</div>}
+                      <td className="py-2.5 px-4">
+                        <div className="font-medium text-gray-900">{p.name}</div>
+                        {p.priceBreak && (
+                          <div className="text-xs text-blue-600 mt-0.5 font-medium">
+                            {p.priceBreak}
+                          </div>
+                        )}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-500">{p.upc}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900">${p.price.toFixed(2)}</td>
-                      <td className="py-2.5 px-3">
-                        <span className={`font-bold ${p.qty === 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                          {p.qty === 0 ? 'Out of Stock' : p.qty}
+                      <td className="py-2.5 px-4 font-mono text-xs text-gray-500">
+                        <div>{p.upc}</div>
+                        <div className="text-[11px] text-gray-400">SKU: {p.sku}</div>
+                      </td>
+                      <td className="py-2.5 px-4 text-xs text-gray-600 font-medium">{p.supplier}</td>
+                      <td className="py-2.5 px-4 text-gray-900 font-semibold">
+                        ${p.price.toFixed(2)}
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <span
+                          className={
+                            p.qty === 0 ? 'text-red-600 font-semibold' : 'text-gray-700'
+                          }
+                        >
+                          {p.qty}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-slate-600 font-medium">{p.wh}</td>
-                      <td className="py-2.5 px-3 text-slate-500 font-bold">{p.lead}</td>
-                      <td className="py-2.5 px-3">
+                      <td className="py-2.5 px-4 text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Warehouse size={12} className="text-gray-400" />
+                          <span>{p.wh}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-4 text-gray-600">{p.lead}</td>
+                      <td className="py-2.5 px-4">
                         {p.match ? (
-                          <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Mapped to {p.match}
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            {p.match}
                           </span>
                         ) : (
-                          <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            Unresolved Match
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                              No Match
+                            </span>
+                            <button
+                              className="text-xs text-blue-600 hover:underline cursor-pointer font-medium"
+                              id={`catalog-manual-match-${idx}`}
+                            >
+                              Map Manually
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <PMInsight>
-            Zero-quantity items (Frozen Fries, row 6) still display rather than being hidden — buyers told us in discovery
-            they wanted to see "out of stock right now" so they could plan ahead, not just get a clean list of only what's
-            orderable today.
-          </PMInsight>
+                })
+              ) : (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-sm text-gray-500">
+                    No products matched your search "{catalogSearch}". You can use the form above to order it as an off-catalog item.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+
+        <PMInsight>
+          Zero-quantity items (Frozen Fries, row 6) still display rather than being hidden — buyers told us in discovery
+          they wanted to see "out of stock right now" so they could plan ahead, not just get a clean list of only what's
+          orderable today.
+        </PMInsight>
       </div>
-    );
-  };
+
+      {selectedProducts.length > 0 && (
+        <div className="fixed bottom-6 right-6 animate-slide-up" id="floating-order-bar">
+          <button
+            id="floating-create-order-btn"
+            onClick={handleCreateOrderFromSelected}
+            className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-lg shadow-lg font-semibold text-sm hover:bg-blue-700 cursor-pointer transition-colors"
+          >
+            <Plus size={16} /> Create Order from Selected ({selectedProducts.length})
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   const OrdersScreen = () => {
-    const lineItems =
-      selectedProducts.length > 0 ? selectedProducts.map(i => catalogList[i]) : [catalogList[1], catalogList[4]];
-
-    const [quantities, setQuantities] = useState<Record<number, number>>(
-      lineItems.reduce((acc, _, idx) => ({ ...acc, [idx]: 1 }), {})
-    );
-
-    const handleQtyChange = (idx: number, val: string) => {
-      const q = parseInt(val) || 0;
-      setQuantities(prev => ({ ...prev, [idx]: q }));
-    };
-
-    const total = lineItems.reduce((sum, p, idx) => sum + p.price * (quantities[idx] || 1), 0);
-    const overThreshold = total >= 5000;
-
-    const handleOrderSubmit = () => {
-      const randomPo = 'PO-' + Math.floor(20500 + Math.random() * 500);
-      setPoNumber(randomPo);
-
-      // Create new history log entry
-      const logEntry: OrderHistoryItem = {
-        po: randomPo,
-        supplier: 'Sysco Foods',
-        date: 'Jul 23, 2026',
-        total: `$${total.toFixed(2)}`,
-        status: overThreshold ? 'Pending Approval' : 'Acknowledged'
-      };
-
-      setOrderHistoryList(prev => [logEntry, ...prev]);
-      setOrderSubmitted(true);
-      setSelectedProducts([]);
-    };
-
     return (
-      <div className="flex-1 overflow-y-auto">
-        <TopBar crumbs={['Purchase Orders', 'New Procurement Dispatch']} />
-        <div className="p-5 max-w-4xl mx-auto w-full">
-          <h1 className="text-lg font-bold text-slate-950 uppercase tracking-tight mb-1">New Procurement PO — Sysco Foods</h1>
-          <p className="text-xs text-slate-500 mb-5">Draft purchase order dispatched directly to connected supplier API</p>
+      <div className="flex-1 overflow-y-auto bg-gray-50" id="orders-screen">
+        <TopBar crumbs={['Orders', 'New Order']} />
+        <div className="p-6 max-w-4xl">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900" id="orders-heading">
+                New Purchase Order — {orderItems[0]?.supplier || 'Sysco Foods'}
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Review line items, adjust order quantities, and inspect line price calculations before submission.
+              </p>
+            </div>
+            {orderSubmitted && (
+              <button
+                onClick={() => setOrderSubmitted(false)}
+                className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
+              >
+                + New Order
+              </button>
+            )}
+          </div>
 
           {!orderSubmitted ? (
-            <div className="space-y-4">
-              <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-xs text-left border-collapse">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="py-2 px-3 font-bold">Procured Product</th>
-                      <th className="py-2 px-3 font-bold">Target Warehouse</th>
-                      <th className="py-2 px-3 font-bold w-16">Quantity</th>
-                      <th className="py-2 px-3 font-bold">Unit Price</th>
-                      <th className="py-2 px-3 text-right font-bold">Line Total</th>
+            <div id="new-order-form">
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs mb-4">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Item</th>
+                      <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Supplier</th>
+                      <th className="text-left py-2.5 px-4 font-semibold text-gray-600">Warehouse</th>
+                      <th className="text-left py-2.5 px-4 font-semibold text-gray-600 font-mono">Qty</th>
+                      <th className="text-right py-2.5 px-4 font-semibold text-gray-600">Unit Price</th>
+                      <th className="text-right py-2.5 px-4 font-semibold text-gray-600">Line Total</th>
+                      <th className="py-2.5 px-3 w-10"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {lineItems.map((p, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50">
-                        <td className="py-2.5 px-3 font-bold text-slate-950">{p.name}</td>
-                        <td className="py-2.5 px-3">
-                          <select className="border border-slate-300 rounded px-1.5 py-0.5 text-xs font-bold bg-white focus:outline-none">
-                            <option>{p.wh}</option>
-                            <option>WH-EAST-02</option>
-                            <option>WH-WEST-01</option>
-                          </select>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <input
-                            type="number"
-                            min="1"
-                            value={quantities[idx] || 1}
-                            onChange={e => handleQtyChange(idx, e.target.value)}
-                            className="w-14 border border-slate-300 rounded px-1.5 py-0.5 text-xs text-center font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-600 font-semibold">${p.price.toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-right font-bold text-slate-900">
-                          ${(p.price * (quantities[idx] || 1)).toFixed(2)}
+                  <tbody>
+                    {orderItems.length > 0 ? (
+                      orderItems.map((item, idx) => {
+                        const lineTotal = item.price * item.qty;
+                        return (
+                          <tr
+                            key={item.id}
+                            className="border-b border-gray-100 last:border-0 hover:bg-gray-50/20"
+                            id={`order-row-${idx}`}
+                          >
+                            <td className="py-2.5 px-4">
+                              <div className="font-medium text-gray-900 flex items-center gap-1.5">
+                                <span>{item.name}</span>
+                                {item.isCustom && (
+                                  <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[10px] rounded font-medium">
+                                    Off-Catalog
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs font-mono text-gray-400">SKU: {item.sku}</div>
+                            </td>
+                            <td className="py-2.5 px-4 text-xs text-gray-600">{item.supplier}</td>
+                            <td className="py-2.5 px-4">
+                              <select
+                                id={`select-order-wh-${idx}`}
+                                value={item.wh}
+                                onChange={(e) => handleUpdateWh(item.id, e.target.value)}
+                                className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                              >
+                                <option value="WH-CA-04">WH-CA-04</option>
+                                <option value="WH-AZ-01">WH-AZ-01</option>
+                              </select>
+                            </td>
+                            <td className="py-2.5 px-4">
+                              <input
+                                id={`input-order-qty-${idx}`}
+                                type="number"
+                                min="1"
+                                value={item.qty}
+                                onChange={(e) =>
+                                  handleUpdateQty(item.id, parseInt(e.target.value, 10))
+                                }
+                                className="w-20 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-semibold text-gray-900"
+                              />
+                            </td>
+                            <td className="py-2.5 px-4 text-right text-gray-700 font-mono">
+                              ${item.price.toFixed(2)}
+                            </td>
+                            <td
+                              className="py-2.5 px-4 text-right font-semibold text-gray-900 font-mono"
+                              id={`line-total-${idx}`}
+                            >
+                              ${lineTotal.toFixed(2)}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <button
+                                onClick={() => handleRemoveOrderItem(item.id)}
+                                title="Remove item"
+                                className="text-gray-400 hover:text-red-600 cursor-pointer"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-sm text-gray-400">
+                          No items in this order yet. Select items from the{' '}
+                          <button
+                            onClick={() => setCurrentView('catalog')}
+                            className="text-blue-600 hover:underline font-medium"
+                          >
+                            Product Catalog
+                          </button>
+                          .
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-slate-50/50 font-bold border-t border-slate-200">
-                      <td colSpan={4} className="py-3 px-3 text-right text-xs font-semibold text-slate-500">
-                        Subtotal Gross Procurement Cost
+                    <tr className="bg-gray-50 border-t border-gray-200">
+                      <td colSpan={5} className="py-3 px-4 text-right font-semibold text-gray-700">
+                        Order Total:
                       </td>
-                      <td className="py-3 px-3 text-right font-bold text-indigo-600 text-sm">
-                        ${total.toFixed(2)}
+                      <td
+                        className="py-3 px-4 text-right font-bold text-base text-gray-900 font-mono"
+                        id="order-total-sum"
+                      >
+                        ${orderTotal.toFixed(2)}
                       </td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
 
               {overThreshold && (
-                <div className="bg-amber-50 border border-amber-200 rounded p-3 flex items-start gap-2.5">
-                  <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div
+                  className="bg-yellow-50 border border-yellow-200 rounded-lg p-3.5 flex items-center gap-2.5 text-sm text-yellow-800 mb-4 animate-fade-in"
+                  id="approval-needed-alert"
+                >
+                  <AlertTriangle size={18} className="text-yellow-600 flex-shrink-0" />
                   <div>
-                    <div className="font-bold text-amber-950 text-xs">Supervisor Verification Triggered</div>
-                    <p className="text-[10px] text-amber-700 mt-0.5 leading-normal">
-                      Surya ERP compliance rules dictate that purchase orders exceeding $5,000 require executive override keys before final transmission to the supplier's automated warehousing core.
-                    </p>
+                    <span className="font-semibold">Compliance Approval Required:</span> This order total (${orderTotal.toFixed(2)}) meets or exceeds the manager threshold of $
+                    {approvalThreshold.toLocaleString()}. A manager sign-off notification will be issued upon submission.
                   </div>
                 </div>
               )}
 
-              <button
-                onClick={handleOrderSubmit}
-                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition-all shadow-sm active:scale-[0.98]"
-              >
-                <CheckCircle2 size={14} /> Submit Order to Supplier Gateway
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  id="btn-submit-order"
+                  disabled={orderItems.length === 0}
+                  onClick={() => {
+                    const generatedPo = `PO-${Math.floor(20500 + Math.random() * 500)}`;
+                    setPoNumber(generatedPo);
+                    setOrderSubmitted(true);
+                    setOrderHistory((prev) => [
+                      {
+                        po: generatedPo,
+                        supplier: orderItems[0]?.supplier || 'Sysco Foods',
+                        date: new Date().toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }),
+                        total: `$${orderTotal.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}`,
+                        status: 'Pending'
+                      },
+                      ...prev
+                    ]);
+                  }}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium shadow-xs transition-colors ${
+                    orderItems.length > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <CheckCircle2 size={16} /> Submit Order to Supplier (${orderTotal.toFixed(2)})
+                </button>
+
+                <button
+                  onClick={() => setCurrentView('catalog')}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium cursor-pointer"
+                >
+                  + Add More Items
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="bg-emerald-50 border border-emerald-200 rounded p-4 mb-5 shadow-sm leading-relaxed">
-              <div className="flex items-center gap-1.5 text-emerald-950 font-bold text-sm mb-1">
-                <CheckCircle2 size={16} className="text-emerald-600" /> Procurement Order Dispatched
+            <div
+              className="bg-green-50 border border-green-200 rounded-lg p-5 animate-fade-in"
+              id="order-submitted-alert"
+            >
+              <div className="flex items-center gap-2 text-green-800 font-semibold mb-2">
+                <CheckCircle2 size={20} /> Order Submitted Successfully
               </div>
-              <p className="text-[11px] text-emerald-700 mb-3">
-                Your purchase order has been generated and pushed into Sysco Foods' incoming API queue. Status updates will synchronize with Surya ERP automatically.
-              </p>
-              <div className="bg-white rounded border border-emerald-100 p-3 text-xs font-semibold text-slate-700 space-y-1.5">
+              <div className="text-sm text-green-700 space-y-1.5">
                 <div>
-                  PO Reference: <span className="font-mono text-slate-900 font-bold">{poNumber}</span>
+                  PO Number:{' '}
+                  <span className="font-mono font-semibold text-green-900 bg-green-100/70 px-2 py-0.5 rounded border border-green-300">
+                    {poNumber}
+                  </span>
                 </div>
-                <div>Submitted: Jul 23, 2026, 2:14 PM Local Time</div>
-                <div className="flex items-center gap-1.5">
-                  Status: <StatusBadge status={overThreshold ? 'Pending Approval' : 'Acknowledged'} />
+                <div>Submitted: {new Date().toLocaleTimeString()}</div>
+                <div>Order Value: <span className="font-bold font-mono">${orderTotal.toFixed(2)}</span></div>
+                <div>
+                  Status: <StatusBadge status="Pending" />
                 </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-green-200 flex gap-3">
+                <button
+                  onClick={() => {
+                    setOrderSubmitted(false);
+                    setOrderItems([
+                      {
+                        id: `SF-item-${Date.now()}`,
+                        name: 'Roma Tomatoes Case',
+                        upc: '041220991823',
+                        sku: 'SF-2210',
+                        price: 24.99,
+                        qty: 1,
+                        wh: 'WH-CA-04',
+                        supplier: 'Sysco Foods'
+                      }
+                    ]);
+                  }}
+                  className="px-4 py-1.5 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700 cursor-pointer"
+                >
+                  Create Another Order
+                </button>
+                <button
+                  onClick={() => setCurrentView('catalog')}
+                  className="px-4 py-1.5 bg-white border border-green-300 text-green-800 rounded text-xs font-semibold hover:bg-green-100/50 cursor-pointer"
+                >
+                  Return to Catalog
+                </button>
               </div>
             </div>
           )}
 
           <PMInsight>
-            Order status doesn't stop at "Submitted" — it flows to Acknowledged / Partially Fulfilled / Rejected based on the
-            supplier's response. I pushed back on an early design that treated "order placed" as the finish line; reconciliation of
-            what the supplier actually confirms is where most of the real operational value (and risk) lives.
+            Order status doesn't stop at "Submitted" — it flows to Acknowledged / Partially Fulfilled / Rejected based on
+            the supplier's response. I pushed back on an early design that treated "order placed" as the finish line;
+            reconciliation of what the supplier actually confirms is where most of the real operational value (and risk) lives.
           </PMInsight>
 
-          <div className="mt-8 border-t border-slate-200 pt-6">
-            <h2 className="font-bold text-slate-950 uppercase tracking-wider text-xs mb-3">Historical Procurement Dispatches</h2>
-            <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-              <table className="w-full text-xs text-left border-collapse">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="py-2.5 px-4 font-bold">PO Code</th>
-                    <th className="py-2.5 px-4 font-bold">Target Supplier</th>
-                    <th className="py-2.5 px-4 font-bold">Dispatch Date</th>
-                    <th className="py-2.5 px-4 font-bold">Gross Procurement Total</th>
-                    <th className="py-2.5 px-4 font-bold">Compliance Status</th>
+          <div className="mt-8" id="order-history-section">
+            <div className="font-semibold text-gray-900 text-sm mb-2">Order History</div>
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-xs">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-600">PO Number</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-600">Supplier</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-600">Date</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-600 font-mono">Total</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-600">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {orderHistoryList.map((o, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="py-2.5 px-4 font-mono text-slate-800 font-bold">{o.po}</td>
-                      <td className="py-2.5 px-4 font-bold text-slate-950">{o.supplier}</td>
-                      <td className="py-2.5 px-4 text-slate-500 font-semibold">{o.date}</td>
-                      <td className="py-2.5 px-4 text-indigo-600 font-bold">{o.total}</td>
-                      <td className="py-2.5 px-4">
+                <tbody>
+                  {orderHistory.map((o, idx) => (
+                    <tr
+                      key={idx}
+                      className="border-b border-gray-100 last:border-0 hover:bg-gray-50/20"
+                      id={`history-row-${idx}`}
+                    >
+                      <td className="py-2 px-4 font-mono text-xs text-gray-700">{o.po}</td>
+                      <td className="py-2 px-4 text-gray-700">{o.supplier}</td>
+                      <td className="py-2 px-4 text-gray-500">{o.date}</td>
+                      <td className="py-2 px-4 text-gray-900 font-semibold">{o.total}</td>
+                      <td className="py-2 px-4">
                         <StatusBadge status={o.status} />
                       </td>
                     </tr>
@@ -1546,15 +1479,12 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen flex bg-slate-50 font-sans overflow-hidden">
+    <div className="h-screen flex bg-gray-50 font-sans" id="app-root-layout">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-hidden">
-        {currentView === 'sales-order' && <SalesOrderScreen />}
-        {currentView === 'suppliers' && <SuppliersScreen />}
-        {currentView === 'new-connection' && <NewConnectionScreen />}
-        {currentView === 'catalog' && <CatalogScreen />}
-        {currentView === 'orders' && <OrdersScreen />}
-      </div>
+      {currentView === 'suppliers' && <SuppliersScreen />}
+      {currentView === 'new-connection' && <NewConnectionScreen />}
+      {currentView === 'catalog' && <CatalogScreen />}
+      {currentView === 'orders' && <OrdersScreen />}
     </div>
   );
 }
